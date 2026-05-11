@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+
+# Build and packaging
+build/
+dist/
+work/
+
+# IDEs and OS
+.vscode/
+.github/
