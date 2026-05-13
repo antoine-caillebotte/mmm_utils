@@ -1069,6 +1069,21 @@ files = [
 numpy = ">=1.21.2"
 
 [[package]]
+name = "holidays"
+version = "0.96"
+description = "Open World Holidays Framework"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "holidays-0.96-py3-none-any.whl", hash = "sha256:9d4f06603090304584f685b2f3d9f4289eb5c52b83fca472f922cb83cc3fb93f"},
+    {file = "holidays-0.96.tar.gz", hash = "sha256:9d4d15bc28fa690969b82f07a1d6571aa14d4073cc98802510c08dfe3b1f2d25"},
+]
+
+[package.dependencies]
+python-dateutil = ">=2.9.0.post0,<3"
+
+[[package]]
 name = "httpcore"
 version = "1.0.9"
 description = "A minimal low-level HTTP client."
@@ -3973,6 +3988,21 @@ docs = ["Sphinx (>=4.1.2,<4.2.0)", "sphinx_rtd_theme (>=0.5.2,<0.6.0)", "sphinxc
 test = ["aiohttp (>=3.10.5)", "flake8 (>=6.1,<7.0)", "mypy (>=0.800)", "psutil", "pyOpenSSL (>=25.3.0,<25.4.0)", "pycodestyle (>=2.11.0,<2.12.0)"]
 
 [[package]]
+name = "vacances-scolaires-france"
+version = "0.11.0"
+description = "Get school holiday dates for metropolitan France"
+optional = false
+python-versions = "<4,>=2.7"
+groups = ["main"]
+files = [
+    {file = "vacances_scolaires_france-0.11.0-py3-none-any.whl", hash = "sha256:d049fe926612318a41d14ca9265618c963d115fa9e35617a2cdf411899b23c92"},
+    {file = "vacances_scolaires_france-0.11.0.tar.gz", hash = "sha256:6c23d7715afb705f9bf0eb15cd3896562e6cfd356aae1b9379a0bd8ab9ab07b3"},
+]
+
+[package.extras]
+dev = ["pytest"]
+
+[[package]]
 name = "watchfiles"
 version = "1.1.1"
 description = "Simple, modern and high performance file watching and code reload in python."
@@ -4229,4 +4259,4 @@ test = ["hypothesis", "packaging", "preliz (>=0.19)", "pytest", "pytest-cov", "s
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12, <3.15"
-content-hash = "adf976ce18dd84b9ced264b770482ed1e54b332a9cf039e3c779c7b46ff6e5e6"
+content-hash = "96a013cfe6b8ec38ac8c2d1e2e4238d2346267d8c83e28d49aab2d157ccd8b34"

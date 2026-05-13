@@ -12,6 +12,8 @@ dependencies = [
     "blackjax (>=1.5,<2.0)",
     "fastprogress (>=1.1.6,<2.0.0)",
     "jinja2 (>=3.1.6,<4.0.0)",
+    "vacances-scolaires-france (>=0.11.0,<0.12.0)",
+    "holidays (>=0.96,<0.97)",
 ]
 
 [dependency-groups]
