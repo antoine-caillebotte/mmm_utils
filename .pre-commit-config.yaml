@@ -14,7 +14,7 @@ repos:
     hooks:
       - id: pylint
         name: pylint
-        entry: pylint
+        entry: poetry run python -m pylint
         language: system
         types: [python]
         args:
