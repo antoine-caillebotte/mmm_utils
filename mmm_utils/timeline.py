@@ -1,8 +1,20 @@
 """Timeline utilities for media mix modeling."""
 
 from __future__ import annotations
+import dataclasses
 
 import pandas as pd
+
+import xarray as xr
+
+
+@dataclasses.dataclass
+class TimelineDataBuffer:
+    """Internal buffer for caching timeline data and derived DataFrames."""
+
+    timeline: dict[str, list[dict]] | None = None
+    outcome_df: pd.DataFrame | None = None
+    spend_df: pd.DataFrame | None = None
 
 
 class Timeline:
@@ -14,23 +26,37 @@ class Timeline:
         Posterior samples containing contribution variables.
     data : pandas.DataFrame
         Raw input data with a ``date`` column and one column per media channel.
-    target_scale : float
+    target : str
+        Name of the target variable in *data* (e.g. ``"y"``).
+    target_scale : float, default=1.0
         Multiplicative scale applied to every contribution value.
     """
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         posterior,
         data: pd.DataFrame,
-        target_scale: float,
+        *,
+        target="y",
+        target_scale: float = 1.0,
+        baseline_components=None,
     ) -> None:
-        self.posterior = posterior
-        self.data = data
-        self.target_scale = target_scale
+        self._posterior = posterior
+        self._data = data
 
-        self._timeline: dict[str, list[dict]] | None = None
-        self._outcome_df: pd.DataFrame | None = None
-        self._spend_df: pd.DataFrame | None = None
+        self._target = target
+        self._target_scale = target_scale
+        self._baseline_components = (
+            baseline_components
+            if baseline_components is not None
+            else ["control", "fourier"]
+        )
+
+        self._buffer = TimelineDataBuffer(
+            timeline=None,
+            outcome_df=None,
+            spend_df=None,
+        )
 
     # ------------------------------------------------------------------
     # Private helpers
@@ -66,7 +92,7 @@ class Timeline:
                 "type": "media",
                 "name": name,
                 "spend": spend,
-                "outcome": float(outcome * self.target_scale),
+                "outcome": float(outcome * self._target_scale),
             }
         )
         return entries
@@ -98,7 +124,7 @@ class Timeline:
                 "type": "baseline",
                 "name": name,
                 "spend": 0,
-                "outcome": float(outcome * self.target_scale),
+                "outcome": float(outcome * self._target_scale),
             }
         )
         return entries
@@ -129,11 +155,65 @@ class Timeline:
                 if name is not None and v is not None:
                     row[name] = float(v)
             rows.append(row)
-        return pd.DataFrame(rows)
+
+        out = pd.DataFrame(rows)
+        out[self._target] = self._data[self._target].values
+        return out
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+    def _build_contributions(self) -> xr.Dataset:
+        """Compute the contributions for all channels and baseline components,
+        and the baseline timeline.
+
+        Returns
+        -------
+        all_contributions : xarray.Dataset
+            Dataset with dimensions ``date`` and ``channel``, containing the
+            contribution values for each media channel and baseline component
+            (if not included in the baseline).
+        baseline_timeline : xarray.DataArray
+            1D array with dimension ``date``, containing the total baseline
+            contribution for each date.
+        """
+        channel = self._posterior["channel_contribution"].mean(dim=["chain", "draw"])
+        control = self._posterior["control_contribution"].mean(dim=["chain", "draw"])
+        fourier = self._posterior["fourier_contribution"].mean(dim=["chain", "draw"])
+        intercept = self._posterior["intercept_contribution"].mean(
+            dim=["chain", "draw"]
+        )
+
+        baseline_timeline = channel.sum(dim="channel") * 0 + intercept
+
+        all_contributions = channel.copy()
+        for comp in ["control", "fourier"]:
+            if comp not in self._baseline_components:
+                if comp == "control":
+                    control = control.rename({"control": "channel"})
+                    all_contributions = xr.concat(
+                        [all_contributions, control], dim="channel"
+                    )
+                elif comp == "fourier":
+                    fourier = fourier.sum(dim=[d for d in fourier.dims if d != "date"])
+                    fourier = fourier.expand_dims(channel=["fourier"]).transpose(
+                        "date", "channel"
+                    )
+
+                    all_contributions = xr.concat(
+                        [all_contributions, fourier], dim="channel"
+                    )
+            else:
+                if comp == "control":
+                    baseline_timeline += control.values.sum(axis=1)
+                elif comp == "fourier":
+                    baseline_timeline += fourier.values.sum(axis=1)
+                elif comp == "intercept":
+                    pass  # already included
+                else:
+                    raise ValueError(f"Unknown baseline component: {comp}")
+
+        return all_contributions, baseline_timeline
 
     def build(self) -> Timeline:
         """Compute the timeline from the posterior and cache it.
@@ -143,21 +223,11 @@ class Timeline:
         Timeline
             *self*, to allow method chaining.
         """
-
-        channel = self.posterior["channel_contribution"].mean(dim=["chain", "draw"])
-        control = self.posterior["control_contribution"].mean(dim=["chain", "draw"])
-        fourier = self.posterior["fourier_contribution"].mean(dim=["chain", "draw"])
-        intercept = self.posterior["intercept_contribution"].mean(dim=["chain", "draw"])
-
-        baseline_timeline = (
-            intercept.values
-            + control.values.sum(axis=1)  # several control variables
-            + fourier.values.sum(axis=1)  # several modes
-        )
+        all_contributions, baseline_timeline = self._build_contributions()
 
         timeline: dict[str, list[dict]] = {}
-        dates = self.data["date"].values
-        media = channel.channel.values
+        dates = self._data["date"].values
+        contrib = all_contributions.channel.values
 
         for i, date_val in enumerate(dates):
             entries: list[dict] = []
@@ -167,23 +237,37 @@ class Timeline:
                 entries, "Baseline", outcome=baseline_timeline[i]
             )
 
-            for m in media:
-                m_contri = float(channel.isel(date=i).sel(channel=m).values)
-                self._add_media_to_entries(
-                    entries, m, spend=self.data[m].iloc[i], outcome=m_contri
-                )
+            for m in contrib:
+                m_contri = float(all_contributions.isel(date=i).sel(channel=m).values)
+
+                spend = 0.0
+                if m in self._data.columns:
+                    spend = float(self._data[m].iloc[i])
+
+                self._add_media_to_entries(entries, m, spend=spend, outcome=m_contri)
 
             timeline[date_str] = entries
 
-        self._timeline = timeline
+        self._buffer.timeline = timeline
         # Invalidate cached DataFrames whenever the timeline is rebuilt
-        self._outcome_df = None
-        self._spend_df = None
+        self._buffer.outcome_df = None
+        self._buffer.spend_df = None
         return self
 
     # ------------------------------------------------------------------
     # public direct getters
     # ------------------------------------------------------------------
+    @property
+    def target(self) -> str:
+        """Name of the target variable.
+
+        Returns
+        -------
+        str
+             Target variable name.
+        """
+        return self._target
+
     @property
     def timeline(self) -> dict[str, list[dict]]:
         """Return the raw timeline dict, building it on first access.
@@ -193,9 +277,9 @@ class Timeline:
         dict[str, list[dict]]
             Date-keyed mapping of entry lists.
         """
-        if self._timeline is None:
+        if self._buffer.timeline is None:
             self.build()
-        return self._timeline  # type: ignore[return-value]
+        return self._buffer.timeline  # type: ignore[return-value]
 
     @property
     def outcome_df(self) -> pd.DataFrame:
@@ -205,9 +289,9 @@ class Timeline:
         -------
         pandas.DataFrame
         """
-        if self._outcome_df is None:
-            self._outcome_df = self._to_dataframe(value="outcome")
-        return self._outcome_df
+        if self._buffer.outcome_df is None:
+            self._buffer.outcome_df = self._to_dataframe(value="outcome")
+        return self._buffer.outcome_df.copy()
 
     @property
     def spend_df(self) -> pd.DataFrame:
@@ -217,9 +301,9 @@ class Timeline:
         -------
         pandas.DataFrame
         """
-        if self._spend_df is None:
-            self._spend_df = self._to_dataframe(value="spend")
-        return self._spend_df
+        if self._buffer.spend_df is None:
+            self._buffer.spend_df = self._to_dataframe(value="spend")
+        return self._buffer.spend_df.copy()
 
     # ------------------------------------------------------------------
     # public getters with processing
@@ -235,8 +319,12 @@ class Timeline:
         pandas.Series
             Index: channel name. Values: ROAS ratio.
         """
-        total_outcome = self.outcome_df.drop(columns=["date", "Baseline"]).sum()
-        total_spend = self.spend_df.drop(columns=["date", "Baseline"]).sum()
+        total_outcome = self.outcome_df.drop(
+            columns=[self._target, "date", "Baseline"]
+        ).sum()
+        total_spend = self.spend_df.drop(
+            columns=[self._target, "date", "Baseline"]
+        ).sum()
         roas = total_outcome / total_spend.replace(0, float("nan"))
         roas.name = "roas"
         return roas
@@ -282,16 +370,16 @@ class Timeline:
         start_ts = pd.to_datetime(start)
         end_ts = pd.to_datetime(end)
 
-        data_copy = self.data.copy()
+        data_copy = self._data.copy()
         date_series = pd.to_datetime(data_copy["date"])
         filtered_data = data_copy.loc[
             (date_series >= start_ts) & (date_series <= end_ts)
         ].copy()
 
         return Timeline(
-            posterior=self.posterior,
+            posterior=self._posterior,
             data=filtered_data,
-            target_scale=self.target_scale,
+            target_scale=self._target_scale,
         )
 
     def summary(self) -> pd.DataFrame:
@@ -304,16 +392,6 @@ class Timeline:
             ``"spend"``, and second-level statistics ``"sum"``, ``"mean"``,
             ``"std"``.
         """
-        outcome_stats = (
-            self.outcome_df.set_index("date")
-            .drop(columns=["Baseline"])
-            .agg(["sum", "mean", "std"])
-            .T
-        )
-        spend_stats = (
-            self.spend_df.set_index("date")
-            .drop(columns=["Baseline"])
-            .agg(["sum", "mean", "std"])
-            .T
-        )
+        outcome_stats = self.outcome_df.set_index("date").agg(["sum", "mean", "std"]).T
+        spend_stats = self.spend_df.set_index("date").agg(["sum", "mean", "std"]).T
         return pd.concat({"outcome": outcome_stats, "spend": spend_stats}, axis=1)
