@@ -44,10 +44,58 @@ def plot_media_costs(data, media):
             color=f"C{i}",
             ax=ax[i],
         )
+        ax[i].set(ylabel="")
+        ax[i].set_title(m, fontsize=11)
 
     ax[1].set(xlabel="date")
+
     _ = fig.suptitle("Media Costs Data", fontsize=18, fontweight="bold")
+
     return fig, ax
+
+
+def plot_cross_correlation(data, media, controls, target: str = "y"):
+    """Plot cross-correlation between media/controls and target variable.
+
+    Parameters
+    ----------
+    data : pandas.DataFrame
+        Input data containing media, controls, and target variable.
+    media : list[str]
+        Media channel names to include in the plot.
+    controls : list[str]
+        Control variable names to include in the plot.
+    target : str, default="y"
+        Target variable name.
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        Matplotlib figure containing the cross-correlation plots.
+    axes : numpy.ndarray of matplotlib.axes.Axes
+        Axes array containing the cross-correlation and trend plots for each variable.
+    """
+    nplot = len(media) + len(controls)
+    fig, axes = plt.subplots(nplot, 2, figsize=(8, 1.5 * nplot))
+    fig.suptitle("Cross-correlation", fontsize=16, y=1.02)
+
+    for i, col in enumerate(media + controls):
+        # Cross-correlation plot : sum x[n+k] * y[n]
+        axes[i, 0].xcorr(
+            data[col] - data[col].mean(),
+            data[target] - data[target].mean(),
+            usevlines=True,
+            maxlags=20,
+            normed=True,
+            lw=2,
+        )
+        axes[i, 0].grid(True)
+        axes[i, 0].set_title(f"{col} vs {target}")
+
+        sns.lineplot(x="trend", y=col, data=data, ax=axes[i, 1])
+
+    plt.tight_layout()
+
+    return fig, axes
 
 
 def corr_plot(data, media, controls):
@@ -68,9 +116,7 @@ def corr_plot(data, media, controls):
         Styled correlation matrix with formatting and a color gradient.
     """
 
-    dataframe_styled = (
-        data.corr().loc[media + controls + ["y"], media + controls + ["y"]].style
-    )
+    dataframe_styled = data[media + controls + ["y"]].corr().style
 
     fig = (
         dataframe_styled.format(precision=2)
@@ -94,7 +140,6 @@ def corr_plot(data, media, controls):
 
 def plot_contributions(  # pylint: disable=too-many-arguments,too-many-positional-arguments, too-many-locals
     timeline: Timeline,
-    y: np.ndarray,
     channels: list[str],
     decomposition: bool = True,
     plot_y: bool = True,
@@ -108,8 +153,6 @@ def plot_contributions(  # pylint: disable=too-many-arguments,too-many-positiona
     ----------
     timeline : Timeline
         Timeline object containing ``outcome_df``.
-    y : numpy.ndarray
-        Observed values of ``y``.
     channels : list[str]
         Channel names to display.
     decomposition : bool, default=True
@@ -132,14 +175,13 @@ def plot_contributions(  # pylint: disable=too-many-arguments,too-many-positiona
     ax : matplotlib.axes.Axes
         Axes containing the stacked contribution plot.
     """
-    x = timeline.outcome_df.copy()
-    x["y"] = y
+    x = timeline.outcome_df
 
     assert "date" in x.columns, "x must contain a 'date' column."
     assert all(c in x.columns for c in channels), "All channels must be columns in x."
 
     contributions_order = (
-        x.drop(["date", "y"], axis=1)
+        x.drop(["date", timeline.target], axis=1)
         .sum()
         .sort_values(ascending=ascending)
         .index.tolist()
@@ -149,7 +191,7 @@ def plot_contributions(  # pylint: disable=too-many-arguments,too-many-positiona
         x[contributions_order] = (
             x[contributions_order]
             / x[contributions_order].sum(axis=1).to_numpy()[:, None]
-        ) * x["y"].to_numpy()[:, None]
+        ) * x[timeline.target].to_numpy()[:, None]
 
     fig, ax = plt.subplots(figsize=(10, 5))
 
@@ -161,7 +203,7 @@ def plot_contributions(  # pylint: disable=too-many-arguments,too-many-positiona
         )
 
     if not remove_baseline:
-        fill_between(0, base_mean, 14, "Base")
+        fill_between(0, base_mean, 14, "Baseline")
     else:
         base_mean = np.zeros_like(base_mean)
 
@@ -209,7 +251,9 @@ def plot_summary_contributions(timeline):
     timeline_contributions = timeline.outcome_df
     baseline_contrib = timeline_contributions["Baseline"].sum()
     media_contrib = (
-        timeline_contributions.drop(columns=["y", "date", "Baseline"]).sum(axis=0).sum()
+        timeline_contributions.drop(columns=["date", "Baseline", timeline.target])
+        .sum(axis=0)
+        .sum()
     )
     total_contrib = baseline_contrib + media_contrib
     baseline_contrib = 100 * baseline_contrib / total_contrib
@@ -253,7 +297,7 @@ def plot_summary_contributions_per_media(timeline):
     """
     timeline_contributions = timeline.outcome_df
     contribution_totals = timeline_contributions.drop(
-        columns=["y", "date", "Baseline"]
+        columns=["date", "Baseline", timeline.target]
     ).sum(axis=0)
     contribution_totals.sort_values(ascending=False, inplace=True)
     contribution_decomposition = contribution_totals / sum(contribution_totals) * 100
