@@ -75,7 +75,7 @@ def plot_cross_correlation(data, media, controls, target: str = "y"):
         Axes array containing the cross-correlation and trend plots for each variable.
     """
     nplot = len(media) + len(controls)
-    fig, axes = plt.subplots(nplot, 2, figsize=(8, 1.5 * nplot))
+    fig, axes = plt.subplots(nplot, 2, figsize=(8, 2.5 * nplot))
     fig.suptitle("Cross-correlation", fontsize=16, y=1.02)
 
     for i, col in enumerate(media + controls):
@@ -91,7 +91,8 @@ def plot_cross_correlation(data, media, controls, target: str = "y"):
         axes[i, 0].grid(True)
         axes[i, 0].set_title(f"{col} vs {target}")
 
-        sns.lineplot(x="trend", y=col, data=data, ax=axes[i, 1])
+        sns.lineplot(x="date", y=col, data=data, ax=axes[i, 1])
+        axes[i, 1].tick_params(axis="x", labelrotation=45)
 
     plt.tight_layout()
 
@@ -227,7 +228,7 @@ def plot_contributions(  # pylint: disable=too-many-arguments,too-many-positiona
     ylim = np.array([0.7, 1.1]) * (np.min(base_mean), np.max(last_fill))
     _ = ax.set_ylim(ylim.tolist())
     _ = ax.legend(bbox_to_anchor=(1.01, 1), loc="upper left")
-    _ = ax.set(xlabel="Date", ylabel="Visits")
+    _ = ax.set(xlabel="Date", ylabel="Y")
 
     return fig, ax
 
