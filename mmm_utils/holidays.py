@@ -10,7 +10,7 @@ https://github.com/AntoineAugusti/vacances-scolaires-france
 from datetime import date, timedelta
 import pandas as pd
 
-import holidays
+import holidays as holidays_pkg
 from vacances_scolaires_france import SchoolHolidayDates
 
 
@@ -30,7 +30,7 @@ def create_holiday_columns(data, date_column="date", column_by_zone: bool = Fals
     school_holidays = SchoolHolidayDates()
 
     def count_public_holidays_in_week(year: int, week: int) -> int:  # pylint: disable=missing-return-doc
-        public_holidays = holidays.France(years=[year])
+        public_holidays = holidays_pkg.France(years=[year])
 
         week_start = date.fromisocalendar(year, week, 1)  # Monday
         week_days = [week_start + timedelta(days=i) for i in range(7)]
