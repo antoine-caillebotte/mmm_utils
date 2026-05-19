@@ -276,13 +276,18 @@ def plot_contributions(  # pylint: disable=too-many-arguments,too-many-positiona
     return fig, ax
 
 
-def plot_summary_contributions(timeline):
+def plot_summary_contributions(timeline, controls=None, baseline_override=None):
     """Plot baseline versus media contribution summary as a stacked bar.
 
     Parameters
     ----------
     timeline : Timeline
         Timeline object containing ``outcome_df``.
+    controls : list of str, optional
+        List of control variables to exclude from the contribution calculation.
+    baseline_override : list of str, optional
+        List of variables to exclude from the baseline when calculating contributions.
+         If None, only the "Baseline" column will be excluded.
 
     Returns
     -------
@@ -291,21 +296,49 @@ def plot_summary_contributions(timeline):
     ax : matplotlib.axes.Axes
         Axes containing the stacked bar chart.
     """
+    if controls is None:
+        controls = []
 
     timeline_contributions = timeline.outcome_df
     baseline_contrib = timeline_contributions["Baseline"].sum()
+    if baseline_override is not None:
+        for var in baseline_override:
+            baseline_contrib += timeline_contributions[var].sum()
+    else:
+        baseline_override = []
+
     media_contrib = (
-        timeline_contributions.drop(columns=["date", "Baseline", timeline.target])
+        timeline_contributions.drop(
+            columns=["date", "Baseline", timeline.target] + baseline_override + controls
+        )
         .sum(axis=0)
         .sum()
     )
-    total_contrib = baseline_contrib + media_contrib
+
+    controls_contrib = timeline_contributions[controls].sum().sum()
+
+    total_contrib = baseline_contrib + media_contrib + controls_contrib
     baseline_contrib = 100 * baseline_contrib / total_contrib
     media_contrib = 100 * media_contrib / total_contrib
+    controls_contrib = 100 * controls_contrib / total_contrib
 
     fig, ax = plt.subplots(figsize=(4, 5))
     ax.bar(0, baseline_contrib, width=0.2, label="Baseline")
-    ax.bar(0, media_contrib, width=0.2, label="Media", bottom=baseline_contrib)
+    if controls_contrib > 0:
+        ax.bar(
+            0,
+            controls_contrib,
+            width=0.2,
+            label="Controls",
+            bottom=baseline_contrib,
+        )
+    ax.bar(
+        0,
+        media_contrib,
+        width=0.2,
+        label="Media",
+        bottom=baseline_contrib + controls_contrib,
+    )
 
     for p in plt.gca().patches:
         height = p.get_height()
@@ -324,13 +357,20 @@ def plot_summary_contributions(timeline):
     return fig, ax
 
 
-def plot_summary_contributions_per_media(timeline):
+def plot_summary_contributions_per_media(
+    timeline, controls=None, baseline_override=None
+):
     """Plot percentage contribution by media channel.
 
     Parameters
     ----------
     timeline : Timeline
         Timeline object containing ``outcome_df``.
+    controls : list of str
+        List of control variables to exclude from the contribution calculation.
+    baseline_override : list of str, optional
+        List of variables to exclude from the baseline when calculating contributions.
+         If None, only the "Baseline" column will be excluded.
 
     Returns
     -------
@@ -340,28 +380,50 @@ def plot_summary_contributions_per_media(timeline):
         Axes containing channel contribution percentages.
     """
     timeline_contributions = timeline.outcome_df
+    if baseline_override is None:
+        baseline_override = []
+    if controls is None:
+        controls = []
+
     contribution_totals = timeline_contributions.drop(
-        columns=["date", "Baseline", timeline.target]
+        columns=["date", "Baseline", timeline.target] + baseline_override
     ).sum(axis=0)
+
     contribution_totals.sort_values(ascending=False, inplace=True)
     contribution_decomposition = contribution_totals / sum(contribution_totals) * 100
 
     fig, ax = plt.subplots(figsize=(7, 5))
 
-    contribution_decomposition.plot.bar(ax=ax)
+    colors = []
+    for col in contribution_decomposition.index:
+        if col in controls:
+            if contribution_decomposition[col] > 0:
+                colors.append("green")
+            else:
+                colors.append("red")
+        elif col == "yearly_seasonality":
+            colors.append("orange")
+        else:
+            colors.append("blue")
 
-    ax.set_ylim(0, contribution_decomposition.max() * 1.2)
+    contribution_decomposition.plot.bar(ax=ax, color=colors)
+
+    ax.set_ylim(
+        contribution_decomposition.min() * 1.2, contribution_decomposition.max() * 1.2
+    )
     for patch in ax.patches:
         height = patch.get_height()
-        if height > 0:
-            ax.annotate(
-                f"{height:.1f}%",
-                (patch.get_x() + patch.get_width() * 0.6, patch.get_height() + 4),
-                ha="center",
-                va="top",
-                fontsize=11,
-                color="black",
-            )
+        ax.annotate(
+            f"{height:.1f}%",
+            (patch.get_x() + patch.get_width() * 0.6, height * 1.05),
+            ha="center",
+            va="bottom" if height > 0 else "top",
+            fontsize=11,
+            color="black",
+        )
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
 
     plt.tight_layout()
     return fig, ax

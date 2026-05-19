@@ -30,6 +30,9 @@ class Timeline:
         Name of the target variable in *data* (e.g. ``"y"``).
     target_scale : float, default=1.0
         Multiplicative scale applied to every contribution value.
+    baseline_components : list of str, optional
+        List of baseline component names to include in the baseline.
+        Valid values include ``"control"``, ``"yearly_seasonality"``.
     """
 
     def __init__(  # pylint: disable=too-many-arguments
@@ -49,8 +52,15 @@ class Timeline:
         self._baseline_components = (
             baseline_components
             if baseline_components is not None
-            else ["control", "fourier"]
+            else ["control", "yearly_seasonality"]
         )
+
+        for comp in self._baseline_components:
+            if comp not in ["control", "yearly_seasonality"]:
+                raise ValueError(
+                    f"Invalid baseline component: {comp}. "
+                    "Valid options are 'control' and 'yearly_seasonality' or both."
+                )
 
         self._buffer = TimelineDataBuffer(
             timeline=None,
@@ -179,7 +189,9 @@ class Timeline:
         """
         channel = self._posterior["channel_contribution"].mean(dim=["chain", "draw"])
         control = self._posterior["control_contribution"].mean(dim=["chain", "draw"])
-        fourier = self._posterior["fourier_contribution"].mean(dim=["chain", "draw"])
+        yearly_seasonality = self._posterior["yearly_seasonality_contribution"].mean(
+            dim=["chain", "draw"]
+        )
         intercept = self._posterior["intercept_contribution"].mean(
             dim=["chain", "draw"]
         )
@@ -187,27 +199,26 @@ class Timeline:
         baseline_timeline = channel.sum(dim="channel") * 0 + intercept
 
         all_contributions = channel.copy()
-        for comp in ["control", "fourier"]:
+        for comp in ["control", "yearly_seasonality"]:
             if comp not in self._baseline_components:
                 if comp == "control":
                     control = control.rename({"control": "channel"})
                     all_contributions = xr.concat(
                         [all_contributions, control], dim="channel"
                     )
-                elif comp == "fourier":
-                    fourier = fourier.sum(dim=[d for d in fourier.dims if d != "date"])
-                    fourier = fourier.expand_dims(channel=["fourier"]).transpose(
-                        "date", "channel"
-                    )
+                elif comp == "yearly_seasonality":
+                    yearly_seasonality = yearly_seasonality.expand_dims(
+                        channel=["yearly_seasonality"]
+                    ).transpose("date", "channel")
 
                     all_contributions = xr.concat(
-                        [all_contributions, fourier], dim="channel"
+                        [all_contributions, yearly_seasonality], dim="channel"
                     )
             else:
                 if comp == "control":
                     baseline_timeline += control.values.sum(axis=1)
-                elif comp == "fourier":
-                    baseline_timeline += fourier.values.sum(axis=1)
+                elif comp == "yearly_seasonality":
+                    baseline_timeline += yearly_seasonality.values.sum(axis=1)
                 elif comp == "intercept":
                     pass  # already included
                 else:
