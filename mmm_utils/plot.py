@@ -9,6 +9,49 @@ from .timeline import Timeline
 tab20colors = plt.get_cmap("tab20").colors
 
 
+def plot_controls_variable(data, controls):
+    """Plot control variables over time.
+
+    Parameters
+    ----------
+    data : pandas.DataFrame
+        Input data containing a ``date`` column and control variable columns.
+    controls : list[str]
+        Control variable names to plot. These should be columns in ``data``.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        Matplotlib figure containing the plot.
+    ax : numpy.ndarray of matplotlib.axes.Axes
+        Axes array, one subplot per control variable.
+    """
+    fig, ax = plt.subplots(
+        nrows=len(controls),
+        ncols=1,
+        figsize=(10, 7),
+        sharex=True,
+        sharey=False,
+        layout="constrained",
+    )
+
+    for i, m in enumerate(controls):
+        ax[i].step(
+            data["date"],
+            data[m],
+            color=f"C{i}",
+            where="post",
+        )
+        ax[i].set(ylabel="")
+        ax[i].set_title(m, fontsize=11)
+
+    ax[1].set(xlabel="date")
+
+    _ = fig.suptitle("Controls Data", fontsize=18, fontweight="bold")
+
+    return fig, ax
+
+
 def plot_media_costs(data, media):
     """Plot media costs over time for the specified media channels.
 
