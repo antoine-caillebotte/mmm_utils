@@ -17,6 +17,13 @@ class TimelineDataBuffer:
     spend_df: pd.DataFrame | None = None
 
 
+def _mean(x: xr.DataArray, accepted_dim=None) -> xr.DataArray:
+    if accepted_dim is None:
+        accepted_dim = ["chain", "draw", "sample"]
+    dims = [d for d in x.dims if d in accepted_dim]
+    return x.mean(dim=dims)
+
+
 class Timeline:
     """Builds and exposes a date-keyed timeline of channel and baseline contributions.
 
@@ -167,12 +174,50 @@ class Timeline:
             rows.append(row)
 
         out = pd.DataFrame(rows)
-        out[self._target] = self._data[self._target].values
+        y = self._data[self._target].values
+        out[self._target] = (
+            pd.Series(y).reindex(range(len(out)), fill_value=0.0).to_numpy()
+        )
         return out
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+    def _get_reduced_contribution(self, var_name: str) -> xr.DataArray:
+        """Extract and reduce a contribution variable from the posterior.
+
+        Parameters
+        ----------
+        var_name : str
+            Name of the contribution variable to extract (e.g. ``"control"``,
+            ``"yearly_seasonality"``).
+
+        Returns
+        -------
+        xarray.DataArray
+            Reduced contribution values with dimensions ``date`` and optionally
+            ``channel``.
+        """
+        var_key = var_name + "_contribution"
+        dates = self._posterior.coords["date"]
+        if var_key in self._posterior:
+            out = _mean(self._posterior[var_key])
+            if len(out.coords) == 0:
+                out = out.expand_dims(date=dates)
+            if len(out.coords) == 1 and "date" in out.coords:
+                out = out.expand_dims({var_name: [var_name]}).transpose(
+                    "date", var_name
+                )
+            return out
+
+        dates = pd.to_datetime(dates).values
+        return xr.DataArray(
+            [[0.0] for _ in range(len(dates))],
+            dims=["date", var_name],
+            coords={"date": dates, var_name: [var_name]},
+            name=var_name,
+        )
+
     def _build_contributions(self) -> xr.Dataset:
         """Compute the contributions for all channels and baseline components,
         and the baseline timeline.
@@ -187,16 +232,11 @@ class Timeline:
             1D array with dimension ``date``, containing the total baseline
             contribution for each date.
         """
-        channel = self._posterior["channel_contribution"].mean(dim=["chain", "draw"])
-        control = self._posterior["control_contribution"].mean(dim=["chain", "draw"])
-        yearly_seasonality = self._posterior["yearly_seasonality_contribution"].mean(
-            dim=["chain", "draw"]
-        )
-        intercept = self._posterior["intercept_contribution"].mean(
-            dim=["chain", "draw"]
-        )
-
-        baseline_timeline = channel.sum(dim="channel") * 0 + intercept
+        channel = self._get_reduced_contribution("channel")
+        control = self._get_reduced_contribution("control")
+        yearly_seasonality = self._get_reduced_contribution("yearly_seasonality")
+        intercept = self._get_reduced_contribution("intercept")
+        baseline_timeline = intercept.sum(dim="intercept")
 
         all_contributions = channel.copy()
         for comp in ["control", "yearly_seasonality"]:
@@ -207,18 +247,20 @@ class Timeline:
                         [all_contributions, control], dim="channel"
                     )
                 elif comp == "yearly_seasonality":
-                    yearly_seasonality = yearly_seasonality.expand_dims(
-                        channel=["yearly_seasonality"]
-                    ).transpose("date", "channel")
+                    yearly_seasonality = yearly_seasonality.rename(
+                        {"yearly_seasonality": "channel"}
+                    )
 
                     all_contributions = xr.concat(
                         [all_contributions, yearly_seasonality], dim="channel"
                     )
             else:
                 if comp == "control":
-                    baseline_timeline += control.values.sum(axis=1)
+                    baseline_timeline += control.sum(dim="control")
                 elif comp == "yearly_seasonality":
-                    baseline_timeline += yearly_seasonality.values.sum(axis=1)
+                    baseline_timeline += yearly_seasonality.sum(
+                        dim="yearly_seasonality"
+                    )
                 elif comp == "intercept":
                     pass  # already included
                 else:
@@ -237,7 +279,7 @@ class Timeline:
         all_contributions, baseline_timeline = self._build_contributions()
 
         timeline: dict[str, list[dict]] = {}
-        dates = self._data["date"].values
+        dates = all_contributions.coords["date"]
         contrib = all_contributions.channel.values
 
         for i, date_val in enumerate(dates):
