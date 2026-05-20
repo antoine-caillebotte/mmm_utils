@@ -17,11 +17,91 @@ class TimelineDataBuffer:
     spend_df: pd.DataFrame | None = None
 
 
+@dataclasses.dataclass
+class DataHandler:
+    """Internal buffer for caching timeline data and derived DataFrames."""
+
+    data: pd.DataFrame | None = None
+    target_name: str | None = None
+    media: list[str] | None = None
+    controls: list[str] | None = None
+
+    @property
+    def dates(self) -> pd.Series:
+        """Get the dates from the data.
+
+        Returns
+        -------
+        pandas.Series
+                Series of dates from the data, converted to datetime.
+        """
+        return pd.to_datetime(self.data["date"])
+
+    @property
+    def target(self) -> pd.Series:
+        """Get the target variable from the data.
+
+
+        Returns
+        -------
+        pandas.Series
+                Series of target variable values from the data.
+        """
+        return self.data[self.target_name]
+
+    def __post_init__(self) -> None:
+        required_columns = [self.target_name, *self.media, *self.controls]
+        missing_columns = [
+            col for col in required_columns if col not in self.data.columns
+        ]
+        if missing_columns:
+            raise ValueError(
+                "Missing required columns in data: "
+                f"{', '.join(sorted(set(missing_columns)))}"
+            )
+
+    def get_spendi(self, i: int, m: str) -> float:
+        """Get the media spend for media channel *m* at index *i*.
+
+        Parameters
+        ----------
+        i : int
+            Index of the row in the data.
+        m : str
+            Name of the media channel.
+        Returns
+        -------
+        float
+            Media spend value for channel *m* at index *i*, or 0.0 if
+            the channel is not found or index is out of bounds.
+        """
+        if m in self.data.columns:
+            if i < len(self.data):
+                return float(self.data[m].iloc[i])
+
+        return 0.0
+
+
 def _mean(x: xr.DataArray, accepted_dim=None) -> xr.DataArray:
     if accepted_dim is None:
         accepted_dim = ["chain", "draw", "sample"]
     dims = [d for d in x.dims if d in accepted_dim]
     return x.mean(dim=dims)
+
+
+def _validate_posterior_and_data_dates(posterior, data):
+    if "date" not in posterior.coords:
+        raise ValueError("posterior must contain a 'date' coordinate.")
+    if "date" not in data.columns:
+        raise ValueError("data must contain a 'date' column.")
+
+    posterior_n_dates = int(posterior.coords["date"].size)
+    data_n_dates = int(len(data))
+    if posterior_n_dates != data_n_dates:
+        raise ValueError(
+            "posterior and data must have the same number of dates: "
+            f"{posterior_n_dates} != {data_n_dates}."
+        )
 
 
 class Timeline:
@@ -47,14 +127,19 @@ class Timeline:
         posterior,
         data: pd.DataFrame,
         *,
+        media: list[str] | None = None,
+        controls: list[str] | None = None,
         target="y",
         target_scale: float = 1.0,
         baseline_components=None,
     ) -> None:
-        self._posterior = posterior
-        self._data = data
+        _validate_posterior_and_data_dates(posterior, data)
 
-        self._target = target
+        self._posterior = posterior
+        self._data = DataHandler(
+            data, target, media=media or [], controls=controls or []
+        )
+
         self._target_scale = target_scale
         self._baseline_components = (
             baseline_components
@@ -174,15 +259,9 @@ class Timeline:
             rows.append(row)
 
         out = pd.DataFrame(rows)
-        y = self._data[self._target].values
-        out[self._target] = (
-            pd.Series(y).reindex(range(len(out)), fill_value=0.0).to_numpy()
-        )
+        out[self.target] = self._data.target.to_numpy()
         return out
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
     def _get_reduced_contribution(self, var_name: str) -> xr.DataArray:
         """Extract and reduce a contribution variable from the posterior.
 
@@ -268,6 +347,9 @@ class Timeline:
 
         return all_contributions, baseline_timeline
 
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
     def build(self) -> Timeline:
         """Compute the timeline from the posterior and cache it.
 
@@ -279,7 +361,7 @@ class Timeline:
         all_contributions, baseline_timeline = self._build_contributions()
 
         timeline: dict[str, list[dict]] = {}
-        dates = all_contributions.coords["date"]
+        dates = all_contributions.coords["date"].values
         contrib = all_contributions.channel.values
 
         for i, date_val in enumerate(dates):
@@ -292,10 +374,7 @@ class Timeline:
 
             for m in contrib:
                 m_contri = float(all_contributions.isel(date=i).sel(channel=m).values)
-
-                spend = 0.0
-                if m in self._data.columns:
-                    spend = float(self._data[m].iloc[i])
+                spend = self._data.get_spendi(i, m)
 
                 self._add_media_to_entries(entries, m, spend=spend, outcome=m_contri)
 
@@ -319,7 +398,7 @@ class Timeline:
         str
              Target variable name.
         """
-        return self._target
+        return self._data.target_name
 
     @property
     def timeline(self) -> dict[str, list[dict]]:
@@ -355,7 +434,9 @@ class Timeline:
         pandas.DataFrame
         """
         if self._buffer.spend_df is None:
-            self._buffer.spend_df = self._to_dataframe(value="spend")
+            df = self._to_dataframe(value="spend")
+            df = df[["date", self.target] + self._data.media]
+            self._buffer.spend_df = df
         return self._buffer.spend_df.copy()
 
     # ------------------------------------------------------------------
@@ -373,10 +454,10 @@ class Timeline:
             Index: channel name. Values: ROAS ratio.
         """
         total_outcome = self.outcome_df.drop(
-            columns=[self._target, "date", "Baseline"]
+            columns=[self.target, "date", "Baseline"]
         ).sum()
         total_spend = self.spend_df.drop(
-            columns=[self._target, "date", "Baseline"]
+            columns=[self.target, "date", "Baseline"]
         ).sum()
         roas = total_outcome / total_spend.replace(0, float("nan"))
         roas.name = "roas"
@@ -423,14 +504,17 @@ class Timeline:
         start_ts = pd.to_datetime(start)
         end_ts = pd.to_datetime(end)
 
-        data_copy = self._data.copy()
+        data_copy = self._data.data.copy()
         date_series = pd.to_datetime(data_copy["date"])
+
+        filtered_posterior = self._posterior.loc[{"date": slice(start_ts, end_ts)}]
+
         filtered_data = data_copy.loc[
             (date_series >= start_ts) & (date_series <= end_ts)
         ].copy()
 
         return Timeline(
-            posterior=self._posterior,
+            posterior=filtered_posterior,
             data=filtered_data,
             target_scale=self._target_scale,
         )
