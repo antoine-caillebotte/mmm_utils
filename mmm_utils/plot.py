@@ -1,8 +1,11 @@
 """Plotting utilities for media mix modeling."""
 
+from collections.abc import Iterable
+
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import pandas as pd
 
 from .timeline import Timeline
 
@@ -93,6 +96,61 @@ def plot_media_costs(data, media):
     ax[1].set(xlabel="date")
 
     _ = fig.suptitle("Media Costs Data", fontsize=18, fontweight="bold")
+
+    return fig, ax
+
+
+def plot_spend(timeline, channels, grid, colors: list[tuple] = tab20colors):
+    """Plot media spend over time for the specified channels.
+
+    Parameters
+    ----------
+    timeline : Timeline
+        Timeline object containing ``spend_df``.
+    channels : list[str]
+        Channel names to plot. These should be columns in ``spend_df``.
+    grid : bool
+        If ``True``, plot each channel in a separate subplot; otherwise,
+        plot all channels on the same axes.
+    colors : list[tuple], default=tab20colors
+        Colors used for the line plots. Should have at least as many colors as channels.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        Matplotlib figure containing the plot.
+        ax : matplotlib.axes.Axes or numpy.ndarray of matplotlib.axes.Axes
+        Axes containing the line plot(s). If ``grid`` is ``True``,
+        this will be an array of subplots; otherwise, it will be a single Axes.
+    """
+    x = timeline.spend_df
+
+    assert "date" in x.columns, "x must contain a 'date' column."
+    assert all(c in x.columns for c in channels), "All channels must be columns in x."
+
+    if grid:
+        fig, ax = plt.subplots(
+            len(channels), 1, figsize=(8, 1 * len(channels)), sharex=True
+        )
+    else:
+        fig, ax = plt.subplots(figsize=(8, 3))
+
+    for i, c in enumerate(channels):
+        if grid:
+            sns.lineplot(data=x, x="date", y=c, color=colors[i], label=c, ax=ax[i])
+        else:
+            sns.lineplot(data=x, x="date", y=c, color=colors[i], label=c, ax=ax)
+
+    if grid:
+        for i in range(len(channels)):
+            ax[i].set_ylabel("Spend")
+            ax[i].legend(loc="upper left")
+            ax[i].tick_params(axis="x", rotation=45)
+
+    else:
+        ax.set_ylabel("Spend")
+        ax.legend(bbox_to_anchor=(1.01, 1), loc="upper left")
+        ax.tick_params(axis="x", rotation=45)
 
     return fig, ax
 
@@ -262,13 +320,15 @@ def plot_contributions(  # pylint: disable=too-many-arguments,too-many-positiona
         sns.lineplot(
             data=x,
             x="date",
-            y="y",
+            y=timeline.target,
             color="black",
             label="Observed",
             ax=ax,
         )
 
-    ylim = np.array([0.7, 1.1]) * (np.min(base_mean), np.max(last_fill))
+    ylim = (np.nanmin(base_mean), np.nanmax(last_fill))
+    ylim *= np.array([0.7, 1.1])
+
     _ = ax.set_ylim(ylim.tolist())
     _ = ax.legend(bbox_to_anchor=(1.01, 1), loc="upper left")
     _ = ax.set(xlabel="Date", ylabel="Y")
@@ -357,15 +417,44 @@ def plot_summary_contributions(timeline, controls=None, baseline_override=None):
     return fig, ax
 
 
+def _normalize_timelines(timelines_input):
+    """Normalize input to a list of timelines and determine if it's a single timeline.
+
+    Parameters
+    ----------
+    timelines_input : Timeline or iterable of Timeline
+        One timeline object or an iterable of timeline objects.
+
+    Returns
+    -------
+    list of Timeline
+        List of timeline objects.
+    bool
+        True if the input was a single timeline, False otherwise.
+    """
+    if hasattr(timelines_input, "outcome_df") and hasattr(timelines_input, "target"):
+        return [timelines_input], True
+
+    if not isinstance(timelines_input, Iterable):
+        raise TypeError("timeline must be a Timeline-like object or an iterable.")
+
+    timelines_list = list(timelines_input)
+    if len(timelines_list) == 0:
+        raise ValueError("At least one timeline is required.")
+
+    return timelines_list, len(timelines_list) == 1
+
+
 def plot_summary_contributions_per_media(
     timeline, controls=None, baseline_override=None
-):
+):  # pylint: disable=too-many-locals, too-many-statements
     """Plot percentage contribution by media channel.
 
     Parameters
     ----------
-    timeline : Timeline
-        Timeline object containing ``outcome_df``.
+    timeline : Timeline or iterable of Timeline
+        One timeline object or an iterable of timeline objects containing
+        ``outcome_df``.
     controls : list of str
         List of control variables to exclude from the contribution calculation.
     baseline_override : list of str, optional
@@ -379,48 +468,186 @@ def plot_summary_contributions_per_media(
     ax : matplotlib.axes.Axes
         Axes containing channel contribution percentages.
     """
-    timeline_contributions = timeline.outcome_df
+
+    def _extract_contribution_decomposition(tl):
+        timeline_contributions = tl.outcome_df
+        contribution_totals = timeline_contributions.drop(
+            columns=["date", "Baseline", tl.target] + baseline_override
+        ).sum(axis=0)
+        contribution_totals.sort_values(ascending=False, inplace=True)
+        return contribution_totals / contribution_totals.sum() * 100
+
+    def _single_timeline_colors(contribution_decomposition, controls_list):
+        colors = []
+        for col in contribution_decomposition.index:
+            if col in controls_list:
+                colors.append("green" if contribution_decomposition[col] > 0 else "red")
+            elif col == "yearly_seasonality":
+                colors.append("orange")
+            else:
+                colors.append("blue")
+        return colors
+
+    def _annotate_bars(ax, bars):
+        for b in bars:
+            height = b.get_height()
+            ax.annotate(
+                f"{height:.1f}%",
+                (b.get_x() + b.get_width() / 2.0, height * 1.05),
+                ha="center",
+                va="bottom" if height > 0 else "top",
+                fontsize=11,
+                color="black",
+            )
+
     if baseline_override is None:
         baseline_override = []
     if controls is None:
         controls = []
 
-    contribution_totals = timeline_contributions.drop(
-        columns=["date", "Baseline", timeline.target] + baseline_override
-    ).sum(axis=0)
+    timelines, is_single = _normalize_timelines(timeline)
+    decompositions = [_extract_contribution_decomposition(tl) for tl in timelines]
 
-    contribution_totals.sort_values(ascending=False, inplace=True)
-    contribution_decomposition = contribution_totals / sum(contribution_totals) * 100
+    if is_single:
+        contribution_decomposition = decompositions[0]
+        fig, ax = plt.subplots(figsize=(7, 5))
 
-    fig, ax = plt.subplots(figsize=(7, 5))
+        colors = _single_timeline_colors(contribution_decomposition, controls)
+        contribution_decomposition.plot.bar(ax=ax, color=colors)
 
-    colors = []
-    for col in contribution_decomposition.index:
-        if col in controls:
-            if contribution_decomposition[col] > 0:
-                colors.append("green")
-            else:
-                colors.append("red")
-        elif col == "yearly_seasonality":
-            colors.append("orange")
-        else:
-            colors.append("blue")
-
-    contribution_decomposition.plot.bar(ax=ax, color=colors)
-
-    ax.set_ylim(
-        contribution_decomposition.min() * 1.2, contribution_decomposition.max() * 1.2
-    )
-    for patch in ax.patches:
-        height = patch.get_height()
-        ax.annotate(
-            f"{height:.1f}%",
-            (patch.get_x() + patch.get_width() * 0.6, height * 1.05),
-            ha="center",
-            va="bottom" if height > 0 else "top",
-            fontsize=11,
-            color="black",
+        ax.set_ylim(
+            contribution_decomposition.min() * 1.2,
+            contribution_decomposition.max() * 1.2,
         )
+        _annotate_bars(ax, ax.patches)
+
+    else:
+        labels = [f"Timeline {index + 1} " for index in range(len(timelines))]
+
+        contribution_matrix = dict(zip(labels, decompositions))
+
+        contribution_df = pd.DataFrame(contribution_matrix).fillna(0.0)
+
+        order = (
+            contribution_df.abs()
+            .mean(axis=1)
+            .sort_values(ascending=False)
+            .index.tolist()
+        )
+        contribution_df = contribution_df.loc[order]
+
+        n_categories = len(contribution_df.index)
+        n_timelines = len(labels)
+        fig_width = max(7, 0.9 * n_categories + 1.3 * n_timelines)
+        fig, ax = plt.subplots(figsize=(fig_width, 5))
+
+        x = np.arange(n_categories)
+        bar_width = min(0.8 / n_timelines, 0.35)
+        offsets = (np.arange(n_timelines) - (n_timelines - 1) / 2.0) * bar_width
+        base_palette = sns.color_palette("tab10", n_colors=n_timelines)
+
+        for i, label in enumerate(labels):
+            values = contribution_df[label].to_numpy()
+            ax.bar(
+                x + offsets[i],
+                values,
+                width=bar_width,
+                color=base_palette[i],
+                label=label,
+            )
+        _annotate_bars(ax, ax.patches)
+
+        min_val = contribution_df.min().min()
+        max_val = contribution_df.max().max()
+        ax.set_ylim(min_val * 1.2, max_val * 1.2)
+        ax.set_xticklabels(contribution_df.index, rotation=45, ha="right")
+        ax.set_xticks(x)
+
+    ax.set_ylabel("Contribution (%)")
+    ax.legend(title="Timelines", bbox_to_anchor=(1.01, 1), loc="upper left")
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    plt.tight_layout()
+    return fig, ax
+
+
+def plot_summary_spend_per_media(timeline):  # pylint: disable=too-many-locals
+    """Plot percentage spend by media channel.
+
+    Parameters
+    ----------
+    timeline : Timeline or iterable of Timeline
+        One timeline object or an iterable of timeline objects containing
+        ``outcome_df``.
+
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        Matplotlib figure containing the bar chart.
+    ax : matplotlib.axes.Axes
+        Axes containing channel spend percentages.
+    """
+
+    def _extract_spend_decomposition(tl):
+        spend_totals = tl.spend_df.drop(columns=["date", tl.target]).sum(axis=0)
+        spend_totals.sort_values(ascending=False, inplace=True)
+        return spend_totals / spend_totals.sum() * 100
+
+    def _annotate_bars(ax, bars):
+        for b in bars:
+            height = b.get_height()
+            ax.annotate(
+                f"{height:.1f}%",
+                (b.get_x() + b.get_width() / 2.0, height * 1.05),
+                ha="center",
+                va="bottom" if height > 0 else "top",
+                fontsize=11,
+                color="black",
+            )
+
+    timelines, _ = _normalize_timelines(timeline)
+    decompositions = [_extract_spend_decomposition(tl) for tl in timelines]
+
+    labels = [f"Timeline {index + 1} " for index in range(len(timelines))]
+
+    spend_matrix = dict(zip(labels, decompositions))
+    spend_df = pd.DataFrame(spend_matrix).fillna(0.0)
+
+    order = spend_df.abs().mean(axis=1).sort_values(ascending=False).index.tolist()
+    spend_df = spend_df.loc[order]
+
+    n_categories = len(spend_df.index)
+    n_timelines = len(labels)
+    fig_width = max(7, 0.9 * n_categories + 1.3 * n_timelines)
+    fig, ax = plt.subplots(figsize=(fig_width, 5))
+
+    x = np.arange(n_categories)
+    bar_width = min(0.8 / n_timelines, 0.35)
+    offsets = (np.arange(n_timelines) - (n_timelines - 1) / 2.0) * bar_width
+    base_palette = sns.color_palette("tab10", n_colors=n_timelines)
+
+    for i, label in enumerate(labels):
+        values = spend_df[label].to_numpy()
+        _ = ax.bar(
+            x + offsets[i],
+            values,
+            width=bar_width,
+            color=base_palette[i],
+            label=label,
+        )
+    _annotate_bars(ax, ax.patches)
+
+    min_val = spend_df.min().min()
+    max_val = spend_df.max().max()
+    ax.set_ylim(min_val * 1.2, max_val * 1.2)
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(spend_df.index, rotation=90)
+    ax.set_ylabel("Contribution (%)")
+    ax.legend(title="Timelines", bbox_to_anchor=(1.01, 1), loc="upper left")
 
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
