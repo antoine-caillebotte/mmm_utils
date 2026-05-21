@@ -155,7 +155,7 @@ def plot_spend(timeline, channels, grid, colors: list[tuple] = tab20colors):
     return fig, ax
 
 
-def plot_cross_correlation(data, media, controls, target: str = "y"):
+def plot_cross_correlation(data, media, controls, target: str = "y", maxlags: int = 20):
     """Plot cross-correlation between media/controls and target variable.
 
     Parameters
@@ -168,6 +168,10 @@ def plot_cross_correlation(data, media, controls, target: str = "y"):
         Control variable names to include in the plot.
     target : str, default="y"
         Target variable name.
+    maxlags : int, default=20
+        Maximum number of lags to display in the cross-correlation plot.
+
+
     Returns
     -------
     fig : matplotlib.figure.Figure
@@ -185,7 +189,7 @@ def plot_cross_correlation(data, media, controls, target: str = "y"):
             data[col] - data[col].mean(),
             data[target] - data[target].mean(),
             usevlines=True,
-            maxlags=20,
+            maxlags=maxlags,
             normed=True,
             lw=2,
         )
@@ -336,13 +340,13 @@ def plot_contributions(  # pylint: disable=too-many-arguments,too-many-positiona
     return fig, ax
 
 
-def plot_summary_contributions(timeline, controls=None, baseline_override=None):
+def plot_summary_contributions(timeline, controls=None, baseline_override=None):  # pylint: disable=too-many-locals
     """Plot baseline versus media contribution summary as a stacked bar.
 
     Parameters
     ----------
-    timeline : Timeline
-        Timeline object containing ``outcome_df``.
+    timeline :  Timeline or iterable of Timeline
+        One timeline object or an iterable of timeline objects.
     controls : list of str, optional
         List of control variables to exclude from the contribution calculation.
     baseline_override : list of str, optional
@@ -359,62 +363,76 @@ def plot_summary_contributions(timeline, controls=None, baseline_override=None):
     if controls is None:
         controls = []
 
-    timeline_contributions = timeline.outcome_df
-    baseline_contrib = timeline_contributions["Baseline"].sum()
-    if baseline_override is not None:
-        for var in baseline_override:
-            baseline_contrib += timeline_contributions[var].sum()
-    else:
-        baseline_override = []
+    timelines, is_single = _normalize_timelines(timeline)
+    fig, axes = plt.subplots(1, len(timelines), figsize=(3 * len(timelines), 5))
+    if len(timelines) == 1:
+        axes = np.array([axes])
 
-    media_contrib = (
-        timeline_contributions.drop(
-            columns=["date", "Baseline", timeline.target] + baseline_override + controls
-        )
-        .sum(axis=0)
-        .sum()
-    )
+    for i, name in enumerate(timelines.keys()):
+        timeline_contributions = timelines[name].outcome_df
 
-    controls_contrib = timeline_contributions[controls].sum().sum()
+        baseline_contrib = timeline_contributions["Baseline"].sum()
+        if baseline_override is not None:
+            for var in baseline_override:
+                baseline_contrib += timeline_contributions[var].sum()
+        else:
+            baseline_override = []
 
-    total_contrib = baseline_contrib + media_contrib + controls_contrib
-    baseline_contrib = 100 * baseline_contrib / total_contrib
-    media_contrib = 100 * media_contrib / total_contrib
-    controls_contrib = 100 * controls_contrib / total_contrib
-
-    fig, ax = plt.subplots(figsize=(4, 5))
-    ax.bar(0, baseline_contrib, width=0.2, label="Baseline")
-    if controls_contrib > 0:
-        ax.bar(
-            0,
-            controls_contrib,
-            width=0.2,
-            label="Controls",
-            bottom=baseline_contrib,
-        )
-    ax.bar(
-        0,
-        media_contrib,
-        width=0.2,
-        label="Media",
-        bottom=baseline_contrib + controls_contrib,
-    )
-
-    for p in plt.gca().patches:
-        height = p.get_height()
-        if height > 0:
-            plt.gca().annotate(
-                f"{height:.0f}%",
-                (p.get_x() + p.get_width() / 2.0, p.get_y() + height / 2.0),
-                ha="center",
-                va="center",
-                fontsize=10,
-                color="white",
-                weight="bold",
+        media_contrib = (
+            timeline_contributions.drop(
+                columns=["date", "Baseline", timelines[name].target]
+                + baseline_override
+                + controls
             )
+            .sum(axis=0)
+            .sum()
+        )
 
-    _ = ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.05), ncol=2)
-    return fig, ax
+        controls_contrib = timeline_contributions[controls].sum().sum()
+
+        total_contrib = baseline_contrib + media_contrib + controls_contrib
+        baseline_contrib = 100 * baseline_contrib / total_contrib
+        media_contrib = 100 * media_contrib / total_contrib
+        controls_contrib = 100 * controls_contrib / total_contrib
+
+        axes[i].bar(0, baseline_contrib, width=0.1, label="Baseline")
+        if controls_contrib > 0:
+            axes[i].bar(
+                0,
+                controls_contrib,
+                width=0.1,
+                label="Controls",
+                bottom=baseline_contrib,
+            )
+        axes[i].bar(
+            0,
+            media_contrib,
+            width=0.1,
+            label="Media",
+            bottom=baseline_contrib + controls_contrib,
+        )
+
+        for p in axes[i].patches:
+            height = p.get_height()
+            if height > 0:
+                axes[i].annotate(
+                    f"{height:.0f}%",
+                    (p.get_x() + p.get_width() / 2.0, p.get_y() + height / 2.0),
+                    ha="center",
+                    va="center",
+                    fontsize=10,
+                    color="white",
+                    weight="bold",
+                )
+
+        _ = axes[i].legend(loc="upper center", bbox_to_anchor=(0.5, -0.05), ncol=2)
+        _ = axes[i].set_title(name, fontsize=9, weight="bold")
+        axes[i].spines["top"].set_visible(False)
+        axes[i].spines["right"].set_visible(False)
+        axes[i].set_xticks([])
+
+    fig.tight_layout()
+    return (fig, axes[0]) if is_single else (fig, axes)
 
 
 def _normalize_timelines(timelines_input):
@@ -433,12 +451,18 @@ def _normalize_timelines(timelines_input):
         True if the input was a single timeline, False otherwise.
     """
     if hasattr(timelines_input, "outcome_df") and hasattr(timelines_input, "target"):
-        return [timelines_input], True
+        return {"Timeline 1": timelines_input}, True
 
     if not isinstance(timelines_input, Iterable):
         raise TypeError("timeline must be a Timeline-like object or an iterable.")
 
-    timelines_list = list(timelines_input)
+    if not isinstance(timelines_input, dict):
+        timelines_list = {
+            f"Timeline {i + 1}": tl for i, tl in enumerate(timelines_input)
+        }
+    else:
+        timelines_list = timelines_input
+
     if len(timelines_list) == 0:
         raise ValueError("At least one timeline is required.")
 
@@ -489,14 +513,19 @@ def plot_summary_contributions_per_media(
         return colors
 
     def _annotate_bars(ax, bars):
+        hmax = max(b.get_height() for b in bars)
+        height_offset = 5 * hmax / 200.0
+
         for b in bars:
+            font_size = float(np.clip(4 + b.get_width() * 12, 4, 12))
             height = b.get_height()
+
             ax.annotate(
                 f"{height:.1f}%",
-                (b.get_x() + b.get_width() / 2.0, height * 1.05),
+                (b.get_x() + b.get_width() / 2.0, height + height_offset),
                 ha="center",
                 va="bottom" if height > 0 else "top",
-                fontsize=11,
+                fontsize=font_size,
                 color="black",
             )
 
@@ -506,7 +535,9 @@ def plot_summary_contributions_per_media(
         controls = []
 
     timelines, is_single = _normalize_timelines(timeline)
-    decompositions = [_extract_contribution_decomposition(tl) for tl in timelines]
+    decompositions = [
+        _extract_contribution_decomposition(tl) for tl in timelines.values()
+    ]
 
     if is_single:
         contribution_decomposition = decompositions[0]
@@ -515,14 +546,10 @@ def plot_summary_contributions_per_media(
         colors = _single_timeline_colors(contribution_decomposition, controls)
         contribution_decomposition.plot.bar(ax=ax, color=colors)
 
-        ax.set_ylim(
-            contribution_decomposition.min() * 1.2,
-            contribution_decomposition.max() * 1.2,
-        )
         _annotate_bars(ax, ax.patches)
 
     else:
-        labels = [f"Timeline {index + 1} " for index in range(len(timelines))]
+        labels = list(timelines.keys())
 
         contribution_matrix = dict(zip(labels, decompositions))
 
@@ -557,9 +584,6 @@ def plot_summary_contributions_per_media(
             )
         _annotate_bars(ax, ax.patches)
 
-        min_val = contribution_df.min().min()
-        max_val = contribution_df.max().max()
-        ax.set_ylim(min_val * 1.2, max_val * 1.2)
         ax.set_xticklabels(contribution_df.index, rotation=45, ha="right")
         ax.set_xticks(x)
 
