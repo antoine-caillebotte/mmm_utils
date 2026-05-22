@@ -9,4 +9,6 @@ from .plot import (
     plot_media_costs,
 )
 
+from .optimize import get_recommended_budget
+
 from .timeline import Timeline
