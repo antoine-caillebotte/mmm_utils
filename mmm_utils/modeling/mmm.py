@@ -1,0 +1,466 @@
+"""This module implements the MMM class,
+a PyMC-based Bayesian Media Mix Modeling framework
+with adstock and saturation transformations."""
+
+import warnings
+from dataclasses import dataclass, field
+
+# from typing import Callable
+import numpy as np
+import pandas as pd
+import arviz as az
+import pymc as pm
+import pytensor.tensor as pt
+from pytensor.graph.basic import Variable
+
+
+from .utils import ArrayLike, max_abs_scaler
+from .seasonality import fourier_features
+from .prior import PriorSpec, _make_prior
+from .adstocks import Adstock, AdstockType
+from .saturation import Saturation, SaturationType
+
+
+@dataclass(slots=True)
+class MediaTransformSpec:
+    """Configuration adstock + saturation pour un média."""
+
+    adstock: AdstockType = "Geometric"
+    adstock_params: dict[str, float] = field(
+        default_factory=lambda: {"alpha": 0.5, "l_max": 12, "normalize": False}
+    )
+    adstock_priors: dict[str, PriorSpec] = field(default_factory=dict)
+
+    saturation: SaturationType = "Logistic"
+    saturation_params: dict[str, float] = field(default_factory=lambda: {"lam": 0.5})
+    saturation_priors: dict[str, PriorSpec] = field(default_factory=dict)
+
+    def __post_init__(self):
+        overlap = set(self.adstock_params) & set(self.adstock_priors)
+        if overlap:
+            raise ValueError(
+                "adstock_params and adstock_priors must not share keys: "
+                f"{sorted(overlap)}"
+            )
+
+        overlap = set(self.saturation_params) & set(self.saturation_priors)
+        if overlap:
+            raise ValueError(
+                "saturation_params and saturation_priors must not share keys: "
+                f"{sorted(overlap)}"
+            )
+
+
+@dataclass(slots=True)
+class MMMConfig:  # pylint: disable=too-many-instance-attributes
+    """Configuration principale MMM."""
+
+    date_name: str = "date"
+    media_names: list[str] = field(default_factory=list)
+    control_names: list[str] = field(default_factory=list)
+    include_intercept: bool = True
+    include_trend: bool = True
+    seasonality_order: int = 0
+    media_transforms: dict[str, MediaTransformSpec] = field(default_factory=dict)
+    random_seed: int = 42
+
+    prior_intercept: PriorSpec = field(
+        default_factory=lambda: PriorSpec("Normal", {"mu": 0.0, "sigma": 2.0})
+    )
+    prior_media: PriorSpec = field(
+        default_factory=lambda: PriorSpec("HalfNormal", {"sigma": 1.0})
+    )
+    prior_control: PriorSpec = field(
+        default_factory=lambda: PriorSpec("Normal", {"mu": 0.0, "sigma": 1.0})
+    )
+    prior_sigma: PriorSpec = field(
+        default_factory=lambda: PriorSpec("HalfNormal", {"sigma": 1.0})
+    )
+    prior_season: PriorSpec = field(
+        default_factory=lambda: PriorSpec("Laplace", {"mu": 0.0, "b": 0.5})
+    )
+    prior_trend: PriorSpec = field(
+        default_factory=lambda: PriorSpec("Normal", {"mu": 0.0, "sigma": 1.0})
+    )
+
+    # def get_media_with_transforms(
+    #     self, transform_fct: Callable[[str, MediaTransformSpec], bool]
+    # ) -> dict[str, MediaTransformSpec]:
+    #     """List media channels with a specific transform function."""
+    #     media = {}
+    #     for m, spec in self.media_transforms.items():
+    #         if transform_fct(m, spec):
+    #             media[m] = spec
+    #     return media
+
+    # def get_list_media_with_priors(self) -> dict[str, list[str]]:
+    #     """List media channels with priors for adstock/saturation params."""
+
+    #     x = {}
+    #     for adstock_type in AdstockType.__args__:
+    #         x[f"adstock_{adstock_type}"] = self.get_media_with_transforms(
+    #             lambda m, spec: spec.adstock == adstock_type
+    #         )
+
+    #     for saturation_type in SaturationType.__args__:
+    #         x[f"saturation_{saturation_type}"] = self.get_media_with_transforms(
+    #             lambda m, spec: spec.saturation == saturation_type
+    #         )
+    #     return x
+
+
+class MMM:  # pylint: disable=too-many-instance-attributes
+    """Framework MMM bayésien PyMC natif avec backend numpyro."""
+
+    def __init__(self, config: MMMConfig) -> None:
+        self.config = config
+        self.model: pm.Model | None = None
+        self.idata: az.InferenceData | None = None
+        self._X_media: ArrayLike | None = None  # pylint: disable=invalid-name
+        self._X_control: ArrayLike | None = None  # pylint: disable=invalid-name
+        self._y: ArrayLike | None = None
+        self._season: ArrayLike | None = None
+        self._scales: dict[str, np.ndarray] = {}
+
+    def _build_media_contribution(self, x_m: np.ndarray):
+        """Transform media channels with adstock operators.
+
+        Parameters
+        ----------
+        x_m : np.ndarray
+            Raw media matrix with shape ``(n_obs, n_media)``.
+
+        Returns
+        -------
+        np.ndarray | pt.TensorVariable
+            Transformed media matrix, numeric or symbolic depending on priors.
+        """
+        cols = []
+        any_symbolic = False
+
+        # priors = {}
+        # all_specs = self.config.get_list_media_with_priors()
+        # for prior_name, priors_specs in all_specs.items():
+        #     priors[prior_name] = _make_prior(prior_name, all_specs)
+
+        for j, name in enumerate(self.config.media_names):
+            spec = self.config.media_transforms.get(name, MediaTransformSpec())
+            col = x_m[:, j]
+
+            # === sample adstock stochastic params and apply adstock ===
+            adstock_params = dict(spec.adstock_params)
+            for pname, pspec in spec.adstock_priors.items():
+                adstock_params[pname] = _make_prior(f"adstock_{pname}[{name}]", pspec)
+
+            ad = Adstock.from_spec(
+                kind=spec.adstock,
+                dim="media",
+                l_max=spec.adstock_params.get("l_max"),
+                normalize=spec.adstock_params.get("normalize"),
+            )
+            col = ad(col, params=adstock_params)
+            any_symbolic = any_symbolic or isinstance(col, Variable)
+
+            # === apply saturation ===
+            saturation_params = dict(spec.saturation_params)
+            for pname, pspec in spec.saturation_priors.items():
+                saturation_params[pname] = _make_prior(
+                    f"saturation_{pname}[{name}]", pspec
+                )
+            sat = Saturation.from_spec(spec.saturation)
+            col = sat(col, params=saturation_params)
+
+            # === collect transformed column ===
+            cols.append(col)
+
+        if any_symbolic:
+            return pt.stack([pt.as_tensor_variable(col) for col in cols], axis=1)
+        return np.column_stack(cols)
+
+    def _process_data(self, X, y, rescale: bool = True):  # pylint: disable=invalid-name
+        """Extract and scale model inputs.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            Input design table.
+        y : array-like
+            Target series.
+
+        Returns
+        -------
+        np.ndarray
+            Date coordinate array.
+        """
+
+        X_media = X[self.config.media_names].to_numpy(dtype=np.float64)  # pylint: disable=invalid-name
+        X_control = X[self.config.control_names].to_numpy(dtype=np.float64)  # pylint: disable=invalid-name
+
+        if rescale:
+            self._X_media, self._scales["media"] = max_abs_scaler(
+                np.asarray(X_media, dtype=np.float64)
+            )
+
+            self._X_control, self._scales["control"] = max_abs_scaler(
+                np.asarray(X_control, dtype=np.float64)
+            )
+
+            self._y, self._scales["y"] = max_abs_scaler(np.asarray(y, dtype=np.float64))
+        else:
+            self._X_media = np.asarray(X_media, dtype=np.float64)
+            self._X_control = np.asarray(X_control, dtype=np.float64)
+            self._y = np.asarray(y, dtype=np.float64)
+            self._scales = {"media": 1, "control": 1, "y": 1}
+
+        date = X[self.config.date_name].to_numpy()
+
+        return date
+
+    def build(
+        self,
+        X: ArrayLike,
+        y: ArrayLike,
+        rescale: bool = True,
+    ):  # pylint: disable=too-many-locals, invalid-name
+        """Build the probabilistic MMM model.
+
+        Parameters
+        ----------
+        X : ArrayLike
+            Input feature table containing date, media, and controls.
+        y : ArrayLike
+            Observed target series.
+        rescale : bool, optional
+            Whether to rescale media, controls, and target by their max absolute value.
+        """
+        date = self._process_data(X, y, rescale=rescale)
+        n = self._y.shape[0]
+
+        # === Build seasonality features ===
+        seas = fourier_features(n, order=self.config.seasonality_order)
+        self._season = seas
+
+        coords = {
+            "date": date,
+            "media": self.config.media_names,
+            "control": self.config.control_names,
+            "season": sum(
+                [
+                    [f"sin[{i}]", f"cos[{i}]"]
+                    for i in range(self.config.seasonality_order)
+                ],
+                [],
+            ),
+        }
+
+        # for (
+        #     prior_name,
+        #     priors_specs,
+        # ) in self.config.get_list_media_with_priors().items():
+        #     coords[f"media_{prior_name}"] = list(priors_specs.keys())
+
+        with pm.Model(coords=coords) as self.model:
+            # x_m = pm.Data("x_media", self._X_media, dims=("date", "media"))
+            # setattr(x_m, "dims", ("date", "media"))
+            # x_c = pm.Data("x_control", self._X_control, dims=("date", "control"))
+            # x_s = pm.Data("x_season", self._season.eval().sum(axis=0), dims=("date"))
+            # y_o = pm.Data("y_obs", self._y, dims="date")
+
+            x_m = self._X_media
+            x_c = self._X_control
+            x_s = self._season  # shape = (4,n)
+            y_o = self._y
+
+            # === MEDIA ===
+            beta_media = _make_prior(
+                "beta_media", self.config.prior_media, dims="media"
+            )
+            # stochastic media transform if any media has adstock/saturation params with priors
+            x_m_transformed = self._build_media_contribution(x_m)
+            media_contribution = pm.Deterministic(
+                "media_contribution",
+                var=x_m_transformed * beta_media[None, :],
+                dims=["date", "media"],
+            )
+            mu = pm.math.sum(media_contribution, axis=1)
+
+            # === INTERCEPT ===
+            intercept = (
+                _make_prior("intercept", self.config.prior_intercept)
+                if self.config.include_intercept
+                else 0.0
+            )
+            intercept_contribution = pm.Deterministic(
+                "intercept_contribution", var=intercept
+            )
+            mu = mu + intercept_contribution
+
+            # === TREND ===
+            if self.config.include_trend:
+                beta_trend = _make_prior("beta_trend", self.config.prior_trend)
+                trend = np.arange(0, n, dtype=np.float64)
+                trend, self._scales["trend"] = max_abs_scaler(trend)
+
+                trend_contribution = pm.Deterministic(
+                    "trend_contribution",
+                    var=beta_trend * trend,
+                    dims="date",
+                )
+
+                mu = mu + trend_contribution
+
+            # === CONTROL ===
+            beta_control = _make_prior(
+                "beta_control", self.config.prior_control, dims="control"
+            )
+            control_contribution = pm.Deterministic(
+                "control_contribution",
+                var=x_c * beta_control[None, :],
+                dims=["date", "control"],
+            )
+            mu = mu + pm.math.sum(control_contribution, axis=1)
+
+            # === SEASONALITY ===
+            beta_season = _make_prior(
+                "beta_season", self.config.prior_season, dims="season"
+            )
+            yearly_seasonality = pm.Deterministic(
+                "yearly_seasonality_contribution",
+                var=pm.math.dot(x_s, beta_season),
+                dims="date",
+            )
+            mu = mu + yearly_seasonality
+
+            # === LIKELIHOOD ===
+            # if self.config.likelihood == "gaussian":
+            sigma = _make_prior("sigma", self.config.prior_sigma)
+            pm.Normal("y", mu=mu, sigma=sigma, observed=y_o, dims="date")
+            # elif self.config.likelihood == "student_t":
+            #     sigma = _make_prior("sigma", self.config.prior_sigma)
+            #     nu = pm.Exponential("nu", 1 / 30)
+            #     pm.StudentT("y", mu=mu, sigma=sigma, nu=nu, observed=y_o, dims="date")
+            # else:
+            #     sigma = _make_prior("sigma", self.config.prior_sigma)
+            #     pm.LogNormal(
+            #         "y",
+            #         mu=mu,
+            #         sigma=sigma,
+            #         observed=np.clip(y_o, 1e-12, np.inf),
+            #         dims="date",
+            #     )
+
+            _ = pm.Deterministic(
+                "total_media_contribution",
+                var=pm.math.sum(media_contribution, axis=1),
+                dims="date",
+            )
+
+    def fit(  # pylint: disable=too-many-arguments
+        self,
+        *,
+        draws: int = 1000,
+        tune: int = 1000,
+        chains: int = 2,
+        cores: int = 2,
+        target_accept: float = 0.9,
+    ) -> None:
+        """Run posterior sampling for the built model.
+
+        Parameters
+        ----------
+        draws : int, optional
+            Number of posterior draws.
+        tune : int, optional
+            Number of tuning steps.
+        chains : int, optional
+            Number of MCMC chains.
+        cores : int, optional
+            Number of CPU cores to use.
+        target_accept : float, optional
+            Target acceptance probability for NUTS.
+        """
+
+        with self.model:
+            self.idata = pm.sample(
+                draws=draws,
+                tune=tune,
+                chains=chains,
+                cores=cores,
+                target_accept=target_accept,
+                random_seed=self.config.random_seed,
+                nuts_sampler="numpyro",
+                return_inferencedata=True,
+                idata_kwargs={"log_likelihood": True},
+            )
+
+            if self.idata["sample_stats"]["diverging"].sum().item() > 0:
+                warnings.warn(
+                    "Divergences detected in sampling!"
+                    " Consider increasing target_accept or reparameterizing."
+                )
+
+    def sample_posterior_predictive(self, samples: int = 1000) -> None:
+        """Sample posterior predictive distribution.
+
+        Parameters
+        ----------
+        samples : int, optional
+            Kept for API compatibility.
+
+        Raises
+        ------
+        RuntimeError
+             If called before fitting the model.
+        """
+        if self.model is None or self.idata is None:
+            raise RuntimeError("Call fit() before sample_posterior_predictive().")
+        with self.model:
+            pm.sample_posterior_predictive(
+                trace=self.idata,
+                # var_names=["y"],
+                random_seed=self.config.random_seed,
+                extend_inferencedata=True,
+            )
+
+            prior = pm.sample_prior_predictive(
+                random_seed=self.config.random_seed,
+                return_inferencedata=True,
+                samples=samples,
+            )
+
+        self.idata.extend(prior)
+
+    def compute_contributions(self) -> pd.DataFrame:
+        """Compute posterior mean contributions by component.
+
+        Returns
+        -------
+        pd.DataFrame
+            Contribution table with media and optional seasonal/intercept terms.
+
+        Raises
+        ------
+        RuntimeError
+            If called before fitting the model.
+        """
+        if self.idata is None or self._X_media is None:
+            raise RuntimeError("Call fit() before compute_contributions().")
+        post = self.idata.posterior
+        b_media = post["beta_media"].mean(("chain", "draw")).values
+        contrib_media = self._X_media * b_media[None, :]
+        out = pd.DataFrame(
+            contrib_media, columns=[f"contrib_{m}" for m in self.config.media_names]
+        )
+        if "intercept" in post:
+            out["intercept"] = float(post["intercept"].mean().values)
+        if (
+            self._season is not None
+            and self._season.shape[1] > 0
+            and "beta_season" in post
+        ):
+            b_s = post["beta_season"].mean(("chain", "draw")).values
+            out["seasonality"] = self._season @ b_s
+        out["total_media"] = out[
+            [c for c in out.columns if c.startswith("contrib_")]
+        ].sum(axis=1)
+        return out
