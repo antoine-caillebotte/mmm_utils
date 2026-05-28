@@ -2,7 +2,11 @@
 
 from .holidays import create_holiday_columns
 
-from .modeling import get_uncorrelated_controls_against_reference
+from .modeling import adstocks, MMM, MMMConfig
+
+from .modeling.seasonality import fourier_features
+
+
 from .plot import (
     plot_contributions,
     corr_plot,

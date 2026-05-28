@@ -61,19 +61,19 @@ class DataHandler:
             )
 
     def get_spendi(self, i: int, m: str) -> float:
-        """Get the media spend for media channel *m* at index *i*.
+        """Get the media spend for media media *m* at index *i*.
 
         Parameters
         ----------
         i : int
             Index of the row in the data.
         m : str
-            Name of the media channel.
+            Name of the media media.
         Returns
         -------
         float
-            Media spend value for channel *m* at index *i*, or 0.0 if
-            the channel is not found or index is out of bounds.
+            Media spend value for media *m* at index *i*, or 0.0 if
+            the media is not found or index is out of bounds.
         """
         if m in self.data.columns:
             if i < len(self.data):
@@ -105,14 +105,14 @@ def _validate_posterior_and_data_dates(posterior, data):
 
 
 class Timeline:
-    """Builds and exposes a date-keyed timeline of channel and baseline contributions.
+    """Builds and exposes a date-keyed timeline of media and baseline contributions.
 
     Parameters
     ----------
     posterior : xarray.Dataset
         Posterior samples containing contribution variables.
     data : pandas.DataFrame
-        Raw input data with a ``date`` column and one column per media channel.
+        Raw input data with a ``date`` column and one column per media media.
     target : str
         Name of the target variable in *data* (e.g. ``"y"``).
     target_scale : float, default=1.0
@@ -132,6 +132,7 @@ class Timeline:
         target="y",
         target_scale: float = 1.0,
         baseline_components=None,
+        dim_name: dict[str, str] | None = None,
     ) -> None:
         _validate_posterior_and_data_dates(posterior, data)
 
@@ -146,6 +147,22 @@ class Timeline:
             if baseline_components is not None
             else ["control", "yearly_seasonality"]
         )
+        self._dim_name = {
+            "date": "date",
+            "media": "media",
+            "yearly_seasonality": "yearly_seasonality",
+            "trend": "trend",
+            "control": "control",
+            "intercept": "intercept",
+        }
+        for logical_name, dim in (dim_name or {}).items():
+            if logical_name in self._dim_name:
+                self._dim_name[logical_name] = dim
+            else:
+                raise ValueError(
+                    f"Unknown logical dimension name: {logical_name}. "
+                    f"Valid options are: {', '.join(self._dim_name.keys())}."
+                )
 
         for comp in self._baseline_components:
             if comp not in ["control", "yearly_seasonality"]:
@@ -163,6 +180,21 @@ class Timeline:
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
+    def dim(self, name: str) -> str:
+        """Get the dimension name for a given logical dimension.
+
+        Parameters
+        ----------
+        name : str
+            Logical dimension name (e.g. ``"date"``, ``"media"``).
+
+        Returns
+        -------
+        str
+            Actual dimension name used in the posterior dataset.
+        """
+        assert name in self._dim_name, f"Unknown dimension name: {name}"
+        return self._dim_name[name]
 
     def _add_media_to_entries(
         self,
@@ -178,7 +210,7 @@ class Timeline:
         entries : list[dict]
             Running list of entries for the current date.
         name : str
-            Channel name.
+            media name.
         spend : float
             Raw media spend value for this date.
         outcome : float
@@ -242,7 +274,7 @@ class Timeline:
         Returns
         -------
         pandas.DataFrame
-            Wide DataFrame with a ``date`` column and one column per channel /
+            Wide DataFrame with a ``date`` column and one column per media /
             baseline component.
         """
         rows: list[dict] = []
@@ -275,7 +307,7 @@ class Timeline:
         -------
         xarray.DataArray
             Reduced contribution values with dimensions ``date`` and optionally
-            ``channel``.
+            ``media``.
         """
         var_key = var_name + "_contribution"
         dates = self._posterior.coords["date"]
@@ -298,48 +330,58 @@ class Timeline:
         )
 
     def _build_contributions(self) -> xr.Dataset:
-        """Compute the contributions for all channels and baseline components,
+        """Compute the contributions for all medias and baseline components,
         and the baseline timeline.
 
         Returns
         -------
         all_contributions : xarray.Dataset
-            Dataset with dimensions ``date`` and ``channel``, containing the
-            contribution values for each media channel and baseline component
+            Dataset with dimensions ``date`` and ``media``, containing the
+            contribution values for each media media and baseline component
             (if not included in the baseline).
         baseline_timeline : xarray.DataArray
             1D array with dimension ``date``, containing the total baseline
             contribution for each date.
         """
-        channel = self._get_reduced_contribution("channel")
-        control = self._get_reduced_contribution("control")
-        yearly_seasonality = self._get_reduced_contribution("yearly_seasonality")
-        intercept = self._get_reduced_contribution("intercept")
-        baseline_timeline = intercept.sum(dim="intercept")
+        media = self._get_reduced_contribution(self.dim("media"))
+        control = self._get_reduced_contribution(self.dim("control"))
+        yearly_seasonality = self._get_reduced_contribution(
+            self.dim("yearly_seasonality")
+        )
+        intercept = self._get_reduced_contribution(self.dim("intercept"))
+        baseline_timeline = intercept.sum(dim=self.dim("intercept"))
+        trend = self._get_reduced_contribution("trend")
 
-        all_contributions = channel.copy()
-        for comp in ["control", "yearly_seasonality"]:
+        all_contributions = media.copy()
+        for comp in ["control", "trend", "yearly_seasonality"]:
             if comp not in self._baseline_components:
                 if comp == "control":
-                    control = control.rename({"control": "channel"})
+                    control = control.rename({self.dim("control"): self.dim("media")})
                     all_contributions = xr.concat(
-                        [all_contributions, control], dim="channel"
+                        [all_contributions, control], dim=self.dim("media")
                     )
                 elif comp == "yearly_seasonality":
                     yearly_seasonality = yearly_seasonality.rename(
-                        {"yearly_seasonality": "channel"}
+                        {self.dim("yearly_seasonality"): self.dim("media")}
                     )
 
                     all_contributions = xr.concat(
-                        [all_contributions, yearly_seasonality], dim="channel"
+                        [all_contributions, yearly_seasonality], dim=self.dim("media")
+                    )
+                elif comp == "trend":
+                    trend = trend.rename({self.dim("trend"): self.dim("media")})
+                    all_contributions = xr.concat(
+                        [all_contributions, trend], dim=self.dim("media")
                     )
             else:
                 if comp == "control":
-                    baseline_timeline += control.sum(dim="control")
+                    baseline_timeline += control.sum(dim=self.dim("control"))
                 elif comp == "yearly_seasonality":
                     baseline_timeline += yearly_seasonality.sum(
-                        dim="yearly_seasonality"
+                        dim=self.dim("yearly_seasonality")
                     )
+                elif comp == "trend":
+                    baseline_timeline += trend
                 elif comp == "intercept":
                     pass  # already included
                 else:
@@ -361,8 +403,8 @@ class Timeline:
         all_contributions, baseline_timeline = self._build_contributions()
 
         timeline: dict[str, list[dict]] = {}
-        dates = all_contributions.coords["date"].values
-        contrib = all_contributions.channel.values
+        dates = all_contributions.coords[self.dim("date")].values
+        contrib = all_contributions[self.dim("media")].values
 
         for i, date_val in enumerate(dates):
             entries: list[dict] = []
@@ -373,7 +415,9 @@ class Timeline:
             )
 
             for m in contrib:
-                m_contri = float(all_contributions.isel(date=i).sel(channel=m).values)
+                m_contri = float(
+                    all_contributions.isel(date=i).sel({self.dim("media"): m}).values
+                )
                 spend = self._data.get_spendi(i, m)
 
                 self._add_media_to_entries(entries, m, spend=spend, outcome=m_contri)
@@ -415,7 +459,7 @@ class Timeline:
 
     @property
     def outcome_df(self) -> pd.DataFrame:
-        """Wide DataFrame of scaled outcome contributions per channel and date.
+        """Wide DataFrame of scaled outcome contributions per media and date.
 
         Returns
         -------
@@ -427,7 +471,7 @@ class Timeline:
 
     @property
     def spend_df(self) -> pd.DataFrame:
-        """Wide DataFrame of media spend per channel and date.
+        """Wide DataFrame of media spend per media and date.
 
         Returns
         -------
@@ -442,16 +486,16 @@ class Timeline:
     # ------------------------------------------------------------------
     # public getters with processing
     # ------------------------------------------------------------------
-    def get_channel_roas(self) -> pd.Series:
-        """Compute Return on Ad Spend (ROAS) per media channel over the full period.
+    def get_media_roas(self) -> pd.Series:
+        """Compute Return on Ad Spend (ROAS) per media media over the full period.
 
-        ROAS is defined as total outcome divided by total spend for each channel.
-        Channels with zero spend receive a ROAS of ``NaN``.
+        ROAS is defined as total outcome divided by total spend for each media.
+        medias with zero spend receive a ROAS of ``NaN``.
 
         Returns
         -------
         pandas.Series
-            Index: channel name. Values: ROAS ratio.
+            Index: media name. Values: ROAS ratio.
         """
         total_outcome = self.outcome_df.drop(
             columns=[self.target, "date", "Baseline"]
@@ -520,7 +564,7 @@ class Timeline:
         )
 
     def summary(self) -> pd.DataFrame:
-        """Aggregate statistics (sum, mean, std) for outcome and spend per channel.
+        """Aggregate statistics (sum, mean, std) for outcome and spend per media.
 
         Returns
         -------
