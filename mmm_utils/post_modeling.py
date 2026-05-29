@@ -1,8 +1,11 @@
 """Post-modeling utilities for media mix modeling."""
 
+import pandas as pd
+
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+import xarray as xr
 
 
 def get_dist_parameters(mmm, var, imedia):
@@ -146,3 +149,119 @@ def plot_prior_vs_posterior(
         axes.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15), ncol=len(media))
 
     return fig, axes
+
+
+def rope_probability_test(  # pylint: disable=too-many-arguments, too-many-locals
+    posterior: xr.DataArray,
+    var: list[str] | None = None,
+    rope: tuple[float, float] = (-0.1, 0.1),
+    *,
+    rope_by_parameter: dict[str, tuple[float, float]] | None = None,
+    decision_threshold: float = 0.95,
+    verbatim: bool = True,
+) -> pd.DataFrame | pd.Series:
+    """Compute ROPE probabilities for every posterior parameter.
+
+    https://easystats.github.io/bayestestR/articles/region_of_practical_equivalence.html
+
+    Parameters
+    ----------
+    posterior : xr.DataArray
+        Posterior dataset containing the sampled parameters.
+    var : list[str] | None, optional
+        List of variable names to include in the ROPE analysis. If None, all variables are included.
+    rope : tuple[float, float], optional
+        Default ROPE interval applied to all parameters.
+    rope_by_parameter : dict[str, tuple[float, float]] | None, optional
+        Optional per-parameter ROPE overrides. Keys can target either a base
+        variable name (for example "beta_media") or an indexed parameter name
+        (for example "beta_media[TV]").
+    decision_threshold : float, optional
+        Probability threshold used for the decision label.
+    verbatim : bool, optional
+        If True, return the full DataFrame with ROPE probabilities and decisions.
+        If False, return only the parameters where the decision is "undetermined".
+
+    Returns
+    -------
+    pd.DataFrame | pd.Series
+        If verbatim is True, one row per scalar posterior parameter with ROPE
+        probabilities. If verbatim is False, a boolean Series where True means
+        p_in_rope >= decision_threshold.
+    """
+
+    rope_by_parameter = rope_by_parameter or {}
+    rows: list[dict[str, float | str]] = []
+
+    def _resolve_rope(parameter_name: str, base_name: str) -> tuple[float, float]:
+        if parameter_name in rope_by_parameter:
+            return rope_by_parameter[parameter_name]
+        if base_name in rope_by_parameter:
+            return rope_by_parameter[base_name]
+        return rope
+
+    def _compute_row(
+        parameter_name: str,
+        base_name: str,
+        samples: np.ndarray,
+    ) -> None:
+        rope_low, rope_high = _resolve_rope(parameter_name, base_name)
+        rope_low *= np.std(samples)
+        rope_high *= np.std(samples)
+
+        in_rope = (samples >= rope_low) & (samples <= rope_high)
+        p_in_rope = float(np.mean(in_rope))
+        p_below_rope = float(np.mean(samples < rope_low))
+        p_above_rope = float(np.mean(samples > rope_high))
+
+        if p_in_rope >= decision_threshold:
+            decision = "practically_equivalent"
+        elif p_above_rope >= decision_threshold:
+            decision = "practically_greater"
+        elif p_below_rope >= decision_threshold:
+            decision = "practically_lower"
+        else:
+            decision = "undetermined"
+
+        rows.append(
+            {
+                "parameter": parameter_name,
+                "rope_low": float(rope_low),
+                "rope_high": float(rope_high),
+                "lower": p_below_rope,
+                "in": p_in_rope,
+                "greater": p_above_rope,
+                "decision": decision,
+            }
+        )
+
+    for var_name, var_da in posterior.data_vars.items():
+        if var is not None and var_name not in var:
+            continue
+
+        stacked = var_da.stack(sample=("chain", "draw"))
+        value_dims = [dim for dim in stacked.dims if dim != "sample"]
+
+        if not value_dims:
+            samples = np.asarray(stacked.values, dtype=np.float64).ravel()
+            _compute_row(var_name, var_name, samples)
+            continue
+
+        dim_sizes = [stacked.sizes[dim] for dim in value_dims]
+        dim_coords = [stacked.coords[dim].values for dim in value_dims]
+
+        for idx in np.ndindex(*dim_sizes):
+            selector = dict(zip(value_dims, idx))
+            sub = stacked.isel(**selector)
+            samples = np.asarray(sub.values, dtype=np.float64).ravel()
+
+            coord_label = ",".join(str(dim_coords[k][i]) for k, i in enumerate(idx))
+            parameter_name = f"{var_name}[{coord_label}]"
+            _compute_row(parameter_name, var_name, samples)
+
+    rope_df = pd.DataFrame(rows).set_index("parameter").sort_index()
+
+    if verbatim:
+        return rope_df
+
+    return rope_df[rope_df["decision"] == "undetermined"]
