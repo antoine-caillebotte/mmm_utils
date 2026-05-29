@@ -337,7 +337,7 @@ class Timeline:
         -------
         all_contributions : xarray.Dataset
             Dataset with dimensions ``date`` and ``media``, containing the
-            contribution values for each media media and baseline component
+            contribution values for each media and baseline component
             (if not included in the baseline).
         baseline_timeline : xarray.DataArray
             1D array with dimension ``date``, containing the total baseline
@@ -350,10 +350,9 @@ class Timeline:
         )
         intercept = self._get_reduced_contribution(self.dim("intercept"))
         baseline_timeline = intercept.sum(dim=self.dim("intercept"))
-        trend = self._get_reduced_contribution("trend")
 
         all_contributions = media.copy()
-        for comp in ["control", "trend", "yearly_seasonality"]:
+        for comp in ["control", "yearly_seasonality"]:
             if comp not in self._baseline_components:
                 if comp == "control":
                     control = control.rename({self.dim("control"): self.dim("media")})
@@ -368,11 +367,7 @@ class Timeline:
                     all_contributions = xr.concat(
                         [all_contributions, yearly_seasonality], dim=self.dim("media")
                     )
-                elif comp == "trend":
-                    trend = trend.rename({self.dim("trend"): self.dim("media")})
-                    all_contributions = xr.concat(
-                        [all_contributions, trend], dim=self.dim("media")
-                    )
+
             else:
                 if comp == "control":
                     baseline_timeline += control.sum(dim=self.dim("control"))
@@ -380,8 +375,7 @@ class Timeline:
                     baseline_timeline += yearly_seasonality.sum(
                         dim=self.dim("yearly_seasonality")
                     )
-                elif comp == "trend":
-                    baseline_timeline += trend
+
                 elif comp == "intercept":
                     pass  # already included
                 else:
