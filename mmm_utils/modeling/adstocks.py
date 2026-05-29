@@ -94,6 +94,32 @@ def _check_alpha(alpha: ParamLike) -> ParamLike:
     return alpha_array
 
 
+def _check_theta(theta: ParamLike, l_max: int) -> ParamLike:
+    """Validate the adstock theta domain for numeric values.
+
+    Parameters
+    ----------
+    theta : ParamLike
+        Numeric or symbolic adstock delay parameter.
+    l_max : int
+        Maximum lag, used to validate numeric theta.
+    Returns
+    -------
+    ParamLike
+        Original symbolic input or validated numeric array.
+    Raises
+    ------
+    ValueError
+        If a numeric theta is outside [0, l_max).
+    """
+    if _is_symbolic(theta):
+        return theta
+    theta_array = _to_numpy_1d(theta)
+    if not np.all((theta_array >= 0.0) & (theta_array < l_max)):
+        raise ValueError(f"0 <= theta < l_max ({l_max})")
+    return theta_array
+
+
 # ------------------------------------------------------------------
 # Abstract adstock class
 # ------------------------------------------------------------------
@@ -278,7 +304,7 @@ class GeometricDelayedAdstock(Adstock):
         self._check_params(params)
 
         alpha = _check_alpha(params["alpha"])
-        theta = params["theta"]
+        theta = _check_theta(params["theta"], self.l_max)
 
         if _is_symbolic(alpha) or _is_symbolic(theta):
             alpha_scalar = _as_scalar_tensor(alpha)
