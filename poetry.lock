@@ -2345,6 +2345,31 @@ files = [
 ]
 
 [[package]]
+name = "numpyro"
+version = "0.21.0"
+description = "Probabilistic programming with NumPy powered by JAX for autograd and JIT compilation to GPU/TPU/CPU."
+optional = false
+python-versions = ">=3.11"
+groups = ["main"]
+files = [
+    {file = "numpyro-0.21.0-py3-none-any.whl", hash = "sha256:f89eb82303610d12edae057fb2180bab079434961357df9483d44ab04568543c"},
+    {file = "numpyro-0.21.0.tar.gz", hash = "sha256:fc4a90a024a08840868d46b5f9bdc416dfa3ab76c61691036b44ac2b8a77ac77"},
+]
+
+[package.dependencies]
+jax = ">=0.7.0"
+jaxlib = ">=0.7.0"
+multipledispatch = "*"
+numpy = "*"
+tqdm = "*"
+
+[package.extras]
+cpu = ["jax[cpu] (>=0.7.0)"]
+cuda12 = ["jax[cuda12] (>=0.7.0)"]
+cuda13 = ["jax[cuda13] (>=0.7.0)"]
+tpu = ["jax[tpu] (>=0.7.0)"]
+
+[[package]]
 name = "oauthlib"
 version = "3.3.1"
 description = "A generic, spec-compliant, thorough implementation of the OAuth request-signing logic"
@@ -4257,4 +4282,4 @@ test = ["hypothesis", "packaging", "preliz (>=0.19)", "pytest", "pytest-cov", "s
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12, <3.15"
-content-hash = "96a013cfe6b8ec38ac8c2d1e2e4238d2346267d8c83e28d49aab2d157ccd8b34"
+content-hash = "2547b0bc72d6e4db49719721fe4b103ffde624155a4f75ea82404c2da59e2f9b"
