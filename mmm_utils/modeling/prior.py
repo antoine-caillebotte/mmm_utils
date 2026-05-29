@@ -270,9 +270,12 @@ def plot_prior_vs_posterior(
         if var in prior_group.data_vars:
             da_prior = prior_group[var]
             dims = [d for d in da_prior.dims if d not in ("chain", "draw")]
-            coord_values = np.asarray(da_prior.coords[dims[0]].values)
-            matches = np.where(coord_values == name)[0]
-            name_idx = int(matches[0])
+            if dims:
+                coord_values = np.asarray(da_prior.coords[dims[0]].values)
+                matches = np.where(coord_values == name)[0]
+                name_idx = int(matches[0])
+            else:
+                name_idx = 0
         else:
             name_idx = 0
 
