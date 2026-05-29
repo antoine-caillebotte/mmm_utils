@@ -197,7 +197,7 @@ def _resolve_prior_spec_for_var(mmm, var: str, media_name: str) -> PriorSpec:
     raise ValueError(f"Cannot resolve prior specification for variable '{var}'")
 
 
-def plot_prior_vs_posterior(
+def plot_prior_vs_posterior(  # pylint: disable=too-many-locals
     mmm, var: str, media: list[str], *, ncol: int = 3, figsize=(12, 8), seperately=False
 ):  # pylint: disable=too-many-arguments
     """Plot prior and posterior distributions for a given variable and media.
@@ -261,6 +261,7 @@ def plot_prior_vs_posterior(
             cut=0 if np.min(posterior_sample) >= 0 else 3,
         )
 
+        y_max = ax.get_ylim()[1]
         x_min = min(float(np.min(prior_sample)), float(np.min(posterior_sample)))
         x_max = max(float(np.max(prior_sample)), float(np.max(posterior_sample)))
         x_grid = np.linspace(x_min, x_max, 200)
@@ -283,7 +284,7 @@ def plot_prior_vs_posterior(
 
         ax.plot(
             x_grid,
-            np.where(pdf_values < 25, pdf_values, np.nan),
+            np.where(pdf_values < y_max, pdf_values, np.nan),
             color=f"C{i}",
             linestyle="--",
             linewidth=2,
