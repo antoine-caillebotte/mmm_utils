@@ -5,10 +5,12 @@ visualizing priors in PyMC-based MMM models, including:
 from dataclasses import dataclass, field
 
 import re
-
 from typing import Literal
 import numpy as np
+
 import pymc as pm
+from pymc_extras.prior import Prior
+
 import seaborn as sns
 import matplotlib.pyplot as plt
 
@@ -27,7 +29,7 @@ class PriorSpec:
 
 
 def _make_prior(name: str, spec: PriorSpec, dims: str | tuple[str, ...] | None = None):
-    """Build a PyMC prior variable from a PriorSpec.
+    """Build a pymc_extras Prior from a PriorSpec.
 
     Parameters
     ----------
@@ -40,52 +42,55 @@ def _make_prior(name: str, spec: PriorSpec, dims: str | tuple[str, ...] | None =
 
     Returns
     -------
-    pm.TensorVariable
-        PyMC random variable matching the requested prior.
+    Prior
+        Prior object matching the requested prior.
 
     Raises
     ------
     ValueError
         If ``spec.kind`` is not supported.
     """
+
     if spec.kind == "HalfNormal":
-        return pm.HalfNormal(name, sigma=spec.params.get("sigma", 1.0), dims=dims)
+        return Prior(
+            "HalfNormal", sigma=spec.params.get("sigma", 1.0), dims=dims
+        ).create_variable(name, xdist=True)
     if spec.kind == "Normal":
-        return pm.Normal(
-            name,
+        return Prior(
+            "Normal",
             mu=spec.params.get("mu", 0.0),
             sigma=spec.params.get("sigma", 1.0),
             dims=dims,
-        )
+        ).create_variable(name, xdist=True)
     if spec.kind == "Gamma":
-        return pm.Gamma(
-            name,
+        return Prior(
+            "Gamma",
             alpha=spec.params.get("alpha", 2.0),
             beta=spec.params.get("beta", 1.0),
             dims=dims,
-        )
+        ).create_variable(name, xdist=True)
     if spec.kind == "Beta":
-        return pm.Beta(
-            name,
+        return Prior(
+            "Beta",
             alpha=spec.params.get("alpha", 2.0),
             beta=spec.params.get("beta", 2.0),
             dims=dims,
-        )
+        ).create_variable(name, xdist=True)
     if spec.kind == "LogNormal":
-        return pm.LogNormal(
-            name,
+        return Prior(
+            "LogNormal",
             mu=spec.params.get("mu", 0.0),
             sigma=spec.params.get("sigma", 1.0),
             dims=dims,
-        )
+        ).create_variable(name, xdist=True)
 
     if spec.kind in ("Laplace", "LaPlace"):
-        return pm.Laplace(
-            name,
+        return Prior(
+            "Laplace",
             mu=spec.params.get("mu", 0.0),
             b=spec.params.get("b", 1.0),
             dims=dims,
-        )
+        ).create_variable(name, xdist=True)
     raise ValueError(f"Unknown prior type: {spec.kind}")
 
 

@@ -10,10 +10,41 @@ from typing import Literal
 
 import numpy as np
 import pytensor.tensor as pt
+import pytensor.xtensor as ptx
 
-from .utils import _to_numpy_1d, _is_symbolic, ParamLike, ArrayLike, _as_scalar_tensor
+from .utils import (
+    ParamLike,
+    ArrayLike,
+    CheckParameterValue,
+)
 
 SaturationType = Literal["None", "Logistic", "Hill"]
+
+
+_lam_check_op = CheckParameterValue("lam must be positive")
+
+
+def _check_lam(lam: ParamLike) -> ParamLike:
+    """Validate that the logistic saturation parameter ``lam`` is positive.
+
+    Parameters
+    ----------
+    lam : ParamLike
+        Logistic saturation rate parameter, can be numeric or symbolic.
+
+    Returns
+    -------
+    ParamLike
+        The input parameter if valid.
+
+    Raises
+    ------
+    CheckParameterValue
+        If ``lam`` is not positive.
+    """
+    lam_tensor = ptx.as_xtensor(lam)
+    lam_checked = _lam_check_op(lam_tensor, lam_tensor > 0)
+    return ptx.as_xtensor(lam_checked)
 
 
 # ------------------------------------------------------------------
@@ -94,8 +125,6 @@ class Saturation(ABC):
             return IdentitySaturation()
         if kind == "Logistic":
             return LogisticSaturation(mandatory_params=["lam"])
-        if kind == "Hill":
-            return HillSaturation(mandatory_params=["slope", "half_max"])
         raise ValueError(
             f"Unknown saturation kind: {kind},  available options are: {SaturationType.__args__}"
         )
@@ -123,10 +152,10 @@ class IdentitySaturation(Saturation):
 
         Returns
         -------
-        np.ndarray
-            Input converted to a NumPy array.
+        np.ndarray | pt.TensorVariable
+            Input unchanged, as NumPy array or pytensor tensor.
         """
-        return _to_numpy_1d(x)
+        return ptx.as_xtensor(x)
 
 
 # ------------------------------------------------------------------
@@ -155,53 +184,9 @@ class LogisticSaturation(Saturation):
             Saturated signal in (-1, 1).
         """
         self._check_params(params)
-        lam = params["lam"]
-        if _is_symbolic(lam):
-            lam = _as_scalar_tensor(lam)
-        else:
-            lam = float(np.ravel(_to_numpy_1d(lam))[0])
 
-        return (1 - np.exp(-lam * x)) / (1 + np.exp(-lam * x))
+        x = ptx.as_xtensor(x)
+        lam = ptx.as_xtensor(params["lam"])
+        mxlma = -lam * x
 
-
-# ------------------------------------------------------------------
-# Hill saturation
-# ------------------------------------------------------------------
-
-
-class HillSaturation(Saturation):
-    """Hill saturation with slope and half-max parameters."""
-
-    def __call__(
-        self, x: ArrayLike, params: dict[str, ParamLike], **kwargs
-    ) -> np.ndarray | pt.TensorVariable:
-        """Apply Hill saturation: ``x^slope / (half_max^slope + x^slope)``.
-
-        Parameters
-        ----------
-        x : ArrayLike
-            Input media signal. Values should be non-negative.
-        params : dict[str, ParamLike]
-            Must include ``slope`` and ``half_max`` (numeric or symbolic).
-
-        Returns
-        -------
-        np.ndarray | pt.TensorVariable
-            Saturated signal in [0, 1).
-        """
-        self._check_params(params)
-        slope = params["slope"]
-        half_max = params["half_max"]
-
-        if _is_symbolic(slope) or _is_symbolic(half_max):
-            slope_s = _as_scalar_tensor(slope)
-            half_max_s = _as_scalar_tensor(half_max)
-            x_t = pt.as_tensor_variable(_to_numpy_1d(x))
-            x_pow = pt.power(x_t, slope_s)
-            return x_pow / (pt.power(half_max_s, slope_s) + x_pow)
-
-        slope_f = float(np.ravel(_to_numpy_1d(slope))[0])
-        half_max_f = float(np.ravel(_to_numpy_1d(half_max))[0])
-        x_arr = _to_numpy_1d(x)
-        x_pow = np.power(x_arr, slope_f)
-        return x_pow / (np.power(half_max_f, slope_f) + x_pow)
+        return (1 - mxlma.exp()) / (1 + mxlma.exp())
