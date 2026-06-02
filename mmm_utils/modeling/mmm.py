@@ -11,7 +11,6 @@ import pandas as pd
 import arviz as az
 import pymc as pm
 import pymc.dims as pmd
-import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 
 
@@ -60,7 +59,6 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
     media_names: list[str] = field(default_factory=list)
     control_names: list[str] = field(default_factory=list)
     include_intercept: bool = True
-    include_trend: bool = True
     seasonality_order: int = 0
     media_transforms: dict[str, MediaTransformSpec] = field(default_factory=dict)
     random_seed: int = 42
@@ -79,9 +77,6 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
     )
     prior_season: PriorSpec = field(
         default_factory=lambda: PriorSpec("Laplace", {"mu": 0.0, "b": 0.5})
-    )
-    prior_trend: PriorSpec = field(
-        default_factory=lambda: PriorSpec("Normal", {"mu": 0.0, "sigma": 1.0})
     )
 
     # def get_media_with_transforms(
@@ -139,7 +134,7 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             Symbolic transformed media matrix.
         """
         cols = []
-        x_m = ptx.as_xtensor(pt.as_tensor_variable(x_m), dims=("date", "media"))
+        x_m = ptx.as_xtensor(x_m.values, dims=("date", "media"))
 
         for j, name in enumerate(self.config.media_names):
             spec = self.config.media_transforms.get(name, MediaTransformSpec())
@@ -168,9 +163,10 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             col = sat(col, params=saturation_params)
 
             # === collect transformed column ===
+            col = col.expand_dims(dim="media")
             cols.append(col)
 
-        return x_m  # ptx.stack(cols, axis=1)  # , dims=("date", "media"))
+        return ptx.concat(cols, dim="media").transpose("date", "media")
 
     def _process_data(self, X, y, rescale: bool = True):  # pylint: disable=invalid-name
         """Extract and scale model inputs.
@@ -255,12 +251,10 @@ class MMM:  # pylint: disable=too-many-instance-attributes
         with pm.Model(coords=coords) as self.model:
             # Register all data nodes as pm.Data so they can be swapped via
             # pymc.do() for counterfactual / optimisation scenarios.
-            x_m = pm.Data("channel_data", self._X_media, dims=("date", "media"))
-            x_c = pm.Data("control_data", self._X_control, dims=("date", "control"))
-            x_c = ptx.as_xtensor(x_c, dims=("date", "control"))
-            x_s = pm.Data("season_data", self._season, dims=("date", "season"))
-            x_s = ptx.as_xtensor(x_s, dims=("date", "season"))
-            y_o = pm.Data("y_obs", self._y, dims="date")
+            x_m = pmd.Data("channel_data", self._X_media, dims=("date", "media"))
+            x_c = pmd.Data("control_data", self._X_control, dims=("date", "control"))
+            x_s = pmd.Data("season_data", self._season, dims=("date", "season"))
+            y_o = pmd.Data("y_obs", self._y, dims="date")
 
             # === MEDIA ===
             beta_media = _make_prior(
@@ -272,7 +266,6 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             media_contribution = pm.Deterministic(
                 "media_contribution",
                 var=x_m_transformed * beta_media,  # [None, :],
-                # var=x_m_transformed * beta_media,  # [None, :],
                 dims=["date", "media"],
             )
             mu = media_contribution.sum(dim="media")
@@ -288,30 +281,13 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             )
             mu = mu + intercept_contribution
 
-            # === TREND ===
-            if self.config.include_trend:
-                beta_trend = _make_prior("beta_trend", self.config.prior_trend)
-                trend_scale = float(max(n - 1, 1))
-                self._scales["trend"] = trend_scale
-                trend_tensor = ptx.as_xtensor(
-                    pt.arange(n, dtype="float64") / trend_scale, dims=["date"]
-                )
-
-                trend_contribution = pm.Deterministic(
-                    "trend_contribution",
-                    var=beta_trend * trend_tensor,
-                    dims="date",
-                )
-
-                mu = mu + trend_contribution
-
             # === CONTROL ===
             beta_control = _make_prior(
                 "beta_control", self.config.prior_control, dims="control"
             )
-            control_contribution = pm.Deterministic(
+            control_contribution = pmd.Deterministic(
                 "control_contribution",
-                var=x_c * beta_control,
+                value=x_c * beta_control,
                 dims=["date", "control"],
             )
             mu = mu + control_contribution.sum(dim="control")
@@ -320,9 +296,9 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             beta_season = _make_prior(
                 "beta_season", self.config.prior_season, dims="season"
             )
-            yearly_seasonality = pm.Deterministic(
+            yearly_seasonality = pmd.Deterministic(
                 "yearly_seasonality_contribution",
-                var=ptx.math.dot(x_s, beta_season),
+                value=ptx.math.dot(x_s, beta_season),
                 dims="date",
             )
             mu = mu + yearly_seasonality
@@ -330,7 +306,7 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             # === LIKELIHOOD ===
             # if self.config.likelihood == "gaussian":
             sigma = _make_prior("sigma", self.config.prior_sigma)
-            pmd.Normal("y", mu=mu.values, sigma=sigma.values, observed=y_o, dims="date")
+            pmd.Normal("y", mu=mu, sigma=sigma, observed=y_o, dims="date")
             # elif self.config.likelihood == "student_t":
             #     sigma = _make_prior("sigma", self.config.prior_sigma)
             #     nu = pm.Exponential("nu", 1 / 30)
@@ -345,9 +321,9 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             #         dims="date",
             #     )
 
-            _ = pm.Deterministic(
+            _ = pmd.Deterministic(
                 "total_media_contribution",
-                var=media_contribution.sum(dim="media"),
+                value=media_contribution.sum(dim="media"),
                 dims="date",
             )
 

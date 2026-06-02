@@ -10,7 +10,8 @@ from typing import Literal
 
 import numpy as np
 import pytensor.tensor as pt
-import pytensor.xtensor as ptx
+import pytensor.xtensor.math as ptxmath
+from pymc.dims.math import as_xtensor
 
 from .utils import (
     ParamLike,
@@ -42,9 +43,9 @@ def _check_lam(lam: ParamLike) -> ParamLike:
     CheckParameterValue
         If ``lam`` is not positive.
     """
-    lam_tensor = ptx.as_xtensor(lam)
+    lam_tensor = as_xtensor(lam)
     lam_checked = _lam_check_op(lam_tensor, lam_tensor > 0)
-    return ptx.as_xtensor(lam_checked)
+    return as_xtensor(lam_checked)
 
 
 # ------------------------------------------------------------------
@@ -155,7 +156,7 @@ class IdentitySaturation(Saturation):
         np.ndarray | pt.TensorVariable
             Input unchanged, as NumPy array or pytensor tensor.
         """
-        return ptx.as_xtensor(x)
+        return as_xtensor(x)
 
 
 # ------------------------------------------------------------------
@@ -185,8 +186,8 @@ class LogisticSaturation(Saturation):
         """
         self._check_params(params)
 
-        x = ptx.as_xtensor(x)
-        lam = ptx.as_xtensor(params["lam"])
-        mxlma = -lam * x
+        x = as_xtensor(x)
+        lam = as_xtensor(params["lam"])
+        exp_lam_x = ptxmath.exp(-lam * x)  # pylint: disable= too-many-function-args
 
-        return (1 - mxlma.exp()) / (1 + mxlma.exp())
+        return (1 - exp_lam_x) / (1 + exp_lam_x)
