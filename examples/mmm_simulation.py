@@ -190,3 +190,5 @@ if __name__ == "__main__":
     df = ds.to_dataframe().reset_index()
 
     plot_example(df, media_names, control_names)
+
+    df.to_csv("synthetic_mmm_data.csv", index=False)
