@@ -209,8 +209,7 @@ def rope_probability_test(  # pylint: disable=too-many-arguments, too-many-local
         rope_low *= np.std(samples)
         rope_high *= np.std(samples)
 
-        in_rope = (samples >= rope_low) & (samples <= rope_high)
-        p_in_rope = float(np.mean(in_rope))
+        p_in_rope = float(np.mean((samples >= rope_low) & (samples <= rope_high)))
         p_below_rope = float(np.mean(samples < rope_low))
         p_above_rope = float(np.mean(samples > rope_high))
 
@@ -223,14 +222,30 @@ def rope_probability_test(  # pylint: disable=too-many-arguments, too-many-local
         else:
             decision = "undetermined"
 
+        alpha = 1 - decision_threshold
+
+        def _format_with_alpha(probability: float) -> str:
+            rounded_probability = round(probability, 2)
+            n_alpha = (
+                int(max(0, round((1.0 - rounded_probability) / alpha)))
+                if alpha > 0
+                else 0
+            )
+            if n_alpha > 4:
+                n_alpha = 0
+            else:
+                n_alpha = 4 - n_alpha
+
+            return f"{rounded_probability:.2f} ({'*' * n_alpha})"
+
         rows.append(
             {
                 "parameter": parameter_name,
                 "rope_low": float(rope_low),
                 "rope_high": float(rope_high),
-                "lower": p_below_rope,
-                "in": p_in_rope,
-                "greater": p_above_rope,
+                "lower": _format_with_alpha(p_below_rope),
+                "in": _format_with_alpha(p_in_rope),
+                "greater": _format_with_alpha(p_above_rope),
                 "decision": decision,
             }
         )
