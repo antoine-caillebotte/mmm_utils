@@ -14,6 +14,7 @@ dependencies = [
     "jinja2 (>=3.1.6,<4.0.0)",
     "vacances-scolaires-france (>=0.11.0,<0.12.0)",
     "holidays (>=0.96,<0.97)",
+    "numpyro (>=0.21.0,<0.22.0)",
 ]
 
 [dependency-groups]
