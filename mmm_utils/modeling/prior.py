@@ -5,10 +5,14 @@ visualizing priors in PyMC-based MMM models, including:
 from dataclasses import dataclass, field
 
 import re
-
 from typing import Literal
+
 import numpy as np
+
 import pymc as pm
+import pymc.dims as pmd
+
+
 import seaborn as sns
 import matplotlib.pyplot as plt
 
@@ -26,8 +30,8 @@ class PriorSpec:
     params: dict[str, float] = field(default_factory=dict)
 
 
-def _make_prior(name: str, spec: PriorSpec, dims: str | tuple[str, ...] | None = None):
-    """Build a PyMC prior variable from a PriorSpec.
+def _make_prior(name: str, spec: PriorSpec, dims: str | tuple[str, ...] | None = None):  # pylint: disable=too-many-return-statements
+    """Build a pymc_extras Prior from a PriorSpec.
 
     Parameters
     ----------
@@ -40,50 +44,82 @@ def _make_prior(name: str, spec: PriorSpec, dims: str | tuple[str, ...] | None =
 
     Returns
     -------
-    pm.TensorVariable
-        PyMC random variable matching the requested prior.
+    Prior
+        Prior object matching the requested prior.
 
     Raises
     ------
     ValueError
         If ``spec.kind`` is not supported.
     """
+
+    def get_param(name):
+        """Helper to extract parameter value.
+
+        Parameters
+        ----------
+        name : str
+            Parameter name to extract from spec.params.
+        Returns
+        -------
+        float or np.ndarray
+            Parameter value, potentially as an array if media-specific."""
+        value = spec.params.get(name)
+        if isinstance(value, np.ndarray) and value.size > 1:
+            return pmd.as_xtensor(value, dims=(dims,))
+        return value
+
     if spec.kind == "HalfNormal":
-        return pm.HalfNormal(name, sigma=spec.params.get("sigma", 1.0), dims=dims)
-    if spec.kind == "Normal":
-        return pm.Normal(
+        return pmd.HalfNormal(
             name,
-            mu=spec.params.get("mu", 0.0),
-            sigma=spec.params.get("sigma", 1.0),
+            sigma=get_param("sigma"),
+            dims=dims,
+        )
+    if spec.kind == "Normal":
+        return pmd.Normal(
+            name,
+            mu=get_param("mu"),
+            sigma=get_param("sigma"),
             dims=dims,
         )
     if spec.kind == "Gamma":
-        return pm.Gamma(
-            name,
-            alpha=spec.params.get("alpha", 2.0),
-            beta=spec.params.get("beta", 1.0),
-            dims=dims,
+        if "alpha" in spec.params and "beta" in spec.params:
+            return pmd.Gamma(
+                name,
+                alpha=get_param("alpha"),
+                beta=get_param("beta"),
+                dims=dims,
+            )
+        if "mu" in spec.params and "sigma" in spec.params:
+            return pmd.Gamma(
+                name,
+                mu=get_param("mu"),
+                sigma=get_param("sigma"),
+                dims=dims,
+            )
+        raise ValueError(
+            "Gamma prior requires either (alpha, beta) or (mu, sigma) parameters."
         )
     if spec.kind == "Beta":
-        return pm.Beta(
+        return pmd.Beta(
             name,
-            alpha=spec.params.get("alpha", 2.0),
-            beta=spec.params.get("beta", 2.0),
+            alpha=get_param("alpha"),
+            beta=get_param("beta"),
             dims=dims,
         )
     if spec.kind == "LogNormal":
-        return pm.LogNormal(
+        return pmd.LogNormal(
             name,
-            mu=spec.params.get("mu", 0.0),
-            sigma=spec.params.get("sigma", 1.0),
+            mu=get_param("mu"),
+            sigma=get_param("sigma"),
             dims=dims,
         )
 
     if spec.kind in ("Laplace", "LaPlace"):
-        return pm.Laplace(
+        return pmd.Laplace(
             name,
-            mu=spec.params.get("mu", 0.0),
-            b=spec.params.get("b", 1.0),
+            mu=get_param("mu"),
+            b=get_param("b"),
             dims=dims,
         )
     raise ValueError(f"Unknown prior type: {spec.kind}")
@@ -177,7 +213,6 @@ def _resolve_prior_spec_for_var(mmm, var: str, media_name: str) -> PriorSpec:
         "beta_control": cfg.prior_control,
         "sigma": cfg.prior_sigma,
         "beta_season": cfg.prior_season,
-        "beta_trend": cfg.prior_trend,
     }
     if var in direct_map:
         return direct_map[var]

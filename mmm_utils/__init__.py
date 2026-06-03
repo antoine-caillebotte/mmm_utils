@@ -2,10 +2,9 @@
 
 from .holidays import create_holiday_columns
 
-from .modeling import adstocks, MMM, MMMConfig
+from .modeling import adstocks, MMM, MMMConfig, fourier_features
 
-from .modeling.seasonality import fourier_features
-
+from .optimizer import Optimizer
 
 from .plot import (
     plot_contributions,

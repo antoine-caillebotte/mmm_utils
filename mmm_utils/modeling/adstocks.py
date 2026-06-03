@@ -11,8 +11,13 @@ from typing import Literal
 
 import numpy as np
 import pytensor.tensor as pt
+import pytensor.xtensor as ptx
 
-from .utils import _to_numpy_1d, _is_symbolic, ParamLike, ArrayLike, _as_scalar_tensor
+from .utils import (
+    ParamLike,
+    ArrayLike,
+    CheckParameterValue,
+)
 
 AdstockType = Literal["none", "Geometric", "GeometricDelayed"]
 
@@ -25,12 +30,12 @@ def batched_convolution(
     kernel_dim: str,
     lags: int | None = None,
 ) -> np.ndarray | pt.TensorVariable:
-    """Apply a 1D convolution with support for symbolic kernels.
+    """Apply a 1D convolution with support for symbolic inputs and kernels.
 
     Parameters
     ----------
-    x : ArrayLike
-        Input time series.
+    x : ArrayLike | pt.TensorVariable
+        Input time series.  Can be numeric or a symbolic pytensor tensor.
     w : ArrayLike | pt.TensorVariable
         Convolution kernel. Can be numeric or symbolic.
     dim : str
@@ -50,22 +55,15 @@ def batched_convolution(
     ValueError
         If ``lags`` is not provided while ``w`` is symbolic.
     """
-    del dim, kernel_dim  # Kept for API compatibility with previous signature.
+    x = ptx.as_xtensor(x)
+    w = ptx.as_xtensor(w)
 
-    x_arr = _to_numpy_1d(x)
-    if lags is None:
-        if _is_symbolic(w):
-            raise ValueError("lags must be provided when w is symbolic")
-        lags = _to_numpy_1d(w).shape[0]
+    zeros = ptx.as_xtensor(pt.zeros(lags - 1, dtype=x.dtype), dims=(dim,))
+    padded_x = ptx.concat([zeros, x], dim=dim)
+    return ptx.signal.convolve1d(padded_x, w, dims=(dim, kernel_dim), mode="valid")
 
-    padded_x = np.concatenate([np.zeros(lags - 1, dtype=x_arr.dtype), x_arr])
-    lagged = np.lib.stride_tricks.sliding_window_view(padded_x, lags)[:, ::-1]
 
-    if _is_symbolic(w):
-        return pt.dot(pt.as_tensor_variable(lagged), pt.as_tensor_variable(w))
-
-    w_arr = _to_numpy_1d(w)
-    return lagged @ w_arr
+_alpha_check_op = CheckParameterValue(msg="0 < alpha <= 1")
 
 
 def _check_alpha(alpha: ParamLike) -> ParamLike:
@@ -86,12 +84,14 @@ def _check_alpha(alpha: ParamLike) -> ParamLike:
     ValueError
         If a numeric alpha is outside [0, 1].
     """
-    if _is_symbolic(alpha):
-        return alpha
-    alpha_array = _to_numpy_1d(alpha)
-    if not np.all((alpha_array >= 0.0) & (alpha_array <= 1.0)):
-        raise ValueError("0 < alpha <= 1")
-    return alpha_array
+    alpha_tensor = ptx.as_xtensor(alpha).values
+    alpha_checked = _alpha_check_op(
+        alpha_tensor, (alpha_tensor >= 0) & (alpha_tensor <= 1).all()
+    )
+    return ptx.as_xtensor(alpha_checked)
+
+
+_theta_check_op = CheckParameterValue(msg="0 <= theta < l_max")
 
 
 def _check_theta(theta: ParamLike, l_max: int) -> ParamLike:
@@ -112,12 +112,11 @@ def _check_theta(theta: ParamLike, l_max: int) -> ParamLike:
     ValueError
         If a numeric theta is outside [0, l_max).
     """
-    if _is_symbolic(theta):
-        return theta
-    theta_array = _to_numpy_1d(theta)
-    if not np.all((theta_array >= 0.0) & (theta_array < l_max)):
-        raise ValueError(f"0 <= theta < l_max ({l_max})")
-    return theta_array
+    theta_tensor = ptx.as_xtensor(theta).values
+    theta_checked = _theta_check_op(
+        theta_tensor, (theta_tensor >= 0) & (theta_tensor < l_max).all()
+    )
+    return ptx.as_xtensor(theta_checked)
 
 
 # ------------------------------------------------------------------
@@ -150,7 +149,9 @@ class Adstock(ABC):
             raise ValueError("l_max must be a positive integer.")
 
         self.kernel_dim = f"{self.dim}_kernel"
-        self.lags = np.arange(self.l_max, dtype=np.float64)
+        self.lags_xtensor = ptx.as_xtensor(
+            pt.arange(self.l_max, dtype="float64"), dims=(self.kernel_dim,)
+        )
 
     def _check_params(self, params: dict[str, ParamLike]):
         """Ensure that all mandatory parameters are present.
@@ -257,16 +258,9 @@ class GeometricAdstock(Adstock):
         self._check_params(params)
 
         alpha = _check_alpha(params["alpha"])
-        if _is_symbolic(alpha):
-            alpha_scalar = _as_scalar_tensor(alpha)
-            w = pt.power(alpha_scalar, self.lags)
-            if self.normalize:
-                w = w / pt.sum(w)
-        else:
-            alpha_scalar = float(_to_numpy_1d(alpha)[0])
-            w = np.power(alpha_scalar, self.lags)
-            if self.normalize:
-                w = w / np.sum(w)
+        w = ptx.math.power(alpha, self.lags_xtensor)  # pylint: disable=E1121
+        if self.normalize:
+            w = w / w.sum(dim=self.kernel_dim)
 
         return batched_convolution(
             x,
@@ -305,19 +299,11 @@ class GeometricDelayedAdstock(Adstock):
 
         alpha = _check_alpha(params["alpha"])
         theta = _check_theta(params["theta"], self.l_max)
+        x = ptx.as_xtensor(x)
 
-        if _is_symbolic(alpha) or _is_symbolic(theta):
-            alpha_scalar = _as_scalar_tensor(alpha)
-            theta_scalar = _as_scalar_tensor(theta)
-            w = pt.power(alpha_scalar, (self.lags - theta_scalar) ** 2)
-            if self.normalize:
-                w = w / pt.sum(w)
-        else:
-            alpha_scalar = float(_to_numpy_1d(alpha)[0])
-            theta_scalar = float(_to_numpy_1d(theta)[0])
-            w = np.power(alpha_scalar, (self.lags - theta_scalar) ** 2)
-            if self.normalize:
-                w = w / np.sum(w)
+        w = ptx.math.power(alpha, (self.lags_xtensor - theta) ** 2)  # pylint: disable=E1121
+        if self.normalize:
+            w = w / w.sum(dim=self.kernel_dim)
 
         return batched_convolution(
             x,

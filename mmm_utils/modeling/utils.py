@@ -3,10 +3,55 @@
 import numpy as np
 import pytensor.tensor as pt
 from pytensor.graph.basic import Variable
+from pytensor.raise_op import CheckAndRaise
 from xarray import DataArray
 
 type ArrayLike = np.ndarray | DataArray | list[float] | tuple[float, ...]
 type ParamLike = ArrayLike | pt.TensorVariable | float
+
+
+class ParameterValueError(ValueError):
+    """Exception for invalid parameters values"""
+
+
+class CheckParameterValue(CheckAndRaise):
+    """Implements a parameter value check in graph.
+
+
+
+    Raises `ParameterValueError` if the check is not True.
+    """
+
+    __props__ = ("msg", "exc_type")
+
+    def __init__(self, msg: str = ""):
+        super().__init__(ParameterValueError, msg)
+
+    def __str__(self):
+        """Return a string representation of the object."""
+        return f"Check{{{self.msg}}}"
+
+    def R_op(
+        self, inputs: list[Variable], eval_points: Variable | list[Variable]
+    ) -> list[Variable]:
+        """Return the R-operator for the check, which is zero since
+        the check does not depend on the inputs.
+
+        Parameters
+        ----------
+        inputs : list[Variable]
+            List of input variables to the check operation.
+
+        eval_points : Variable | list[Variable]
+            Points at which to evaluate the R-operator.
+
+        Returns
+        -------
+        list[Variable]
+            R-operator evaluated at the given points.
+
+        """
+        return [pt.zeros_like(inputs[0])]
 
 
 def max_abs_scaler(x: np.ndarray) -> np.ndarray:

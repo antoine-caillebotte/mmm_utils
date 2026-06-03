@@ -10,8 +10,8 @@ import numpy as np
 import pandas as pd
 import arviz as az
 import pymc as pm
-import pytensor.tensor as pt
-from pytensor.graph.basic import Variable
+import pymc.dims as pmd
+import pytensor.xtensor as ptx
 
 
 from .utils import ArrayLike, max_abs_scaler
@@ -59,7 +59,6 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
     media_names: list[str] = field(default_factory=list)
     control_names: list[str] = field(default_factory=list)
     include_intercept: bool = True
-    include_trend: bool = True
     seasonality_order: int = 0
     media_transforms: dict[str, MediaTransformSpec] = field(default_factory=dict)
     random_seed: int = 42
@@ -78,9 +77,6 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
     )
     prior_season: PriorSpec = field(
         default_factory=lambda: PriorSpec("Laplace", {"mu": 0.0, "b": 0.5})
-    )
-    prior_trend: PriorSpec = field(
-        default_factory=lambda: PriorSpec("Normal", {"mu": 0.0, "sigma": 1.0})
     )
 
     # def get_media_with_transforms(
@@ -120,49 +116,45 @@ class MMM:  # pylint: disable=too-many-instance-attributes
         self._X_control: ArrayLike | None = None  # pylint: disable=invalid-name
         self._y: ArrayLike | None = None
         self._season: ArrayLike | None = None
-        self._scales: dict[str, np.ndarray] = {}
+        self._scales: dict[str, np.ndarray | float] = {}
 
-    def _build_media_contribution(self, x_m: np.ndarray):
+    def _build_media_contribution(self, x_m):
         """Transform media channels with adstock operators.
 
         Parameters
         ----------
-        x_m : np.ndarray
-            Raw media matrix with shape ``(n_obs, n_media)``.
+        x_m : np.ndarray | pt.TensorVariable
+            Raw (or symbolic) media matrix with shape ``(n_obs, n_media)``.
+            When a ``pm.Data`` tensor is passed the convolution graph stays
+            symbolic so that ``pymc.do`` can later substitute it.
 
         Returns
         -------
-        np.ndarray | pt.TensorVariable
-            Transformed media matrix, numeric or symbolic depending on priors.
+        pt.TensorVariable
+            Symbolic transformed media matrix.
         """
         cols = []
-        any_symbolic = False
-
-        # priors = {}
-        # all_specs = self.config.get_list_media_with_priors()
-        # for prior_name, priors_specs in all_specs.items():
-        #     priors[prior_name] = _make_prior(prior_name, all_specs)
+        x_m = ptx.as_xtensor(x_m.values, dims=("date", "media"))
 
         for j, name in enumerate(self.config.media_names):
             spec = self.config.media_transforms.get(name, MediaTransformSpec())
-            col = x_m[:, j]
+            col = x_m.isel(media=j)
 
             # === sample adstock stochastic params and apply adstock ===
-            adstock_params = dict(spec.adstock_params)
+            adstock_params: dict = dict(spec.adstock_params)
             for pname, pspec in spec.adstock_priors.items():
                 adstock_params[pname] = _make_prior(f"adstock_{pname}[{name}]", pspec)
 
             ad = Adstock.from_spec(
                 kind=spec.adstock,
-                dim="media",
+                dim="date",
                 l_max=spec.adstock_params.get("l_max"),
                 normalize=spec.adstock_params.get("normalize"),
             )
             col = ad(col, params=adstock_params)
-            any_symbolic = any_symbolic or isinstance(col, Variable)
 
             # === apply saturation ===
-            saturation_params = dict(spec.saturation_params)
+            saturation_params: dict = dict(spec.saturation_params)
             for pname, pspec in spec.saturation_priors.items():
                 saturation_params[pname] = _make_prior(
                     f"saturation_{pname}[{name}]", pspec
@@ -171,11 +163,10 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             col = sat(col, params=saturation_params)
 
             # === collect transformed column ===
+            col = col.expand_dims(dim="media")
             cols.append(col)
 
-        if any_symbolic:
-            return pt.stack([pt.as_tensor_variable(col) for col in cols], axis=1)
-        return np.column_stack(cols)
+        return ptx.concat(cols, dim="media").transpose("date", "media")
 
     def _process_data(self, X, y, rescale: bool = True):  # pylint: disable=invalid-name
         """Extract and scale model inputs.
@@ -238,19 +229,17 @@ class MMM:  # pylint: disable=too-many-instance-attributes
 
         # === Build seasonality features ===
         seas = fourier_features(n, order=self.config.seasonality_order)
+        seas_name = sum(
+            [[f"sin[{i}]", f"cos[{i}]"] for i in range(self.config.seasonality_order)],
+            [],
+        )
         self._season = seas
 
         coords = {
             "date": date,
             "media": self.config.media_names,
             "control": self.config.control_names,
-            "season": sum(
-                [
-                    [f"sin[{i}]", f"cos[{i}]"]
-                    for i in range(self.config.seasonality_order)
-                ],
-                [],
-            ),
+            "season": seas_name,
         }
 
         # for (
@@ -260,16 +249,12 @@ class MMM:  # pylint: disable=too-many-instance-attributes
         #     coords[f"media_{prior_name}"] = list(priors_specs.keys())
 
         with pm.Model(coords=coords) as self.model:
-            # x_m = pm.Data("x_media", self._X_media, dims=("date", "media"))
-            # setattr(x_m, "dims", ("date", "media"))
-            # x_c = pm.Data("x_control", self._X_control, dims=("date", "control"))
-            # x_s = pm.Data("x_season", self._season.eval().sum(axis=0), dims=("date"))
-            # y_o = pm.Data("y_obs", self._y, dims="date")
-
-            x_m = self._X_media
-            x_c = self._X_control
-            x_s = self._season  # shape = (4,n)
-            y_o = self._y
+            # Register all data nodes as pm.Data so they can be swapped via
+            # pymc.do() for counterfactual / optimisation scenarios.
+            x_m = pmd.Data("channel_data", self._X_media, dims=("date", "media"))
+            x_c = pmd.Data("control_data", self._X_control, dims=("date", "control"))
+            x_s = pmd.Data("season_data", self._season, dims=("date", "season"))
+            y_o = pmd.Data("y_obs", self._y, dims="date")
 
             # === MEDIA ===
             beta_media = _make_prior(
@@ -277,12 +262,13 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             )
             # stochastic media transform if any media has adstock/saturation params with priors
             x_m_transformed = self._build_media_contribution(x_m)
+
             media_contribution = pm.Deterministic(
                 "media_contribution",
-                var=x_m_transformed * beta_media[None, :],
+                var=x_m_transformed * beta_media,  # [None, :],
                 dims=["date", "media"],
             )
-            mu = pm.math.sum(media_contribution, axis=1)
+            mu = media_contribution.sum(dim="media")
 
             # === INTERCEPT ===
             intercept = (
@@ -295,38 +281,24 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             )
             mu = mu + intercept_contribution
 
-            # === TREND ===
-            if self.config.include_trend:
-                beta_trend = _make_prior("beta_trend", self.config.prior_trend)
-                trend = np.arange(0, n, dtype=np.float64)
-                trend, self._scales["trend"] = max_abs_scaler(trend)
-
-                trend_contribution = pm.Deterministic(
-                    "trend_contribution",
-                    var=beta_trend * trend,
-                    dims="date",
-                )
-
-                mu = mu + trend_contribution
-
             # === CONTROL ===
             beta_control = _make_prior(
                 "beta_control", self.config.prior_control, dims="control"
             )
-            control_contribution = pm.Deterministic(
+            control_contribution = pmd.Deterministic(
                 "control_contribution",
-                var=x_c * beta_control[None, :],
+                value=x_c * beta_control,
                 dims=["date", "control"],
             )
-            mu = mu + pm.math.sum(control_contribution, axis=1)
+            mu = mu + control_contribution.sum(dim="control")
 
             # === SEASONALITY ===
             beta_season = _make_prior(
                 "beta_season", self.config.prior_season, dims="season"
             )
-            yearly_seasonality = pm.Deterministic(
+            yearly_seasonality = pmd.Deterministic(
                 "yearly_seasonality_contribution",
-                var=pm.math.dot(x_s, beta_season),
+                value=ptx.math.dot(x_s, beta_season),
                 dims="date",
             )
             mu = mu + yearly_seasonality
@@ -334,7 +306,7 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             # === LIKELIHOOD ===
             # if self.config.likelihood == "gaussian":
             sigma = _make_prior("sigma", self.config.prior_sigma)
-            pm.Normal("y", mu=mu, sigma=sigma, observed=y_o, dims="date")
+            pmd.Normal("y", mu=mu, sigma=sigma, observed=y_o, dims="date")
             # elif self.config.likelihood == "student_t":
             #     sigma = _make_prior("sigma", self.config.prior_sigma)
             #     nu = pm.Exponential("nu", 1 / 30)
@@ -349,9 +321,9 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             #         dims="date",
             #     )
 
-            _ = pm.Deterministic(
+            _ = pmd.Deterministic(
                 "total_media_contribution",
-                var=pm.math.sum(media_contribution, axis=1),
+                value=media_contribution.sum(dim="media"),
                 dims="date",
             )
 
