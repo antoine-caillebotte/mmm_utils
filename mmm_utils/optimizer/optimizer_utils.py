@@ -2,24 +2,24 @@
 
 from typing import Callable
 
+
+from xarray import DataArray
 import arviz as az
 from arviz import InferenceData
 from pymc.model.core import Model
 
-import pytensor.tensor as pt
-import pytensor.xtensor as ptx
 import pymc as pm
-
-from pymc.dims.math import as_xtensor
 from pymc.pytensorf import rvs_in_graph
+
+import pytensor.tensor as pt
 from pytensor.compile.function import function
 from pytensor.graph.basic import Variable
 from pytensor.graph.replace import clone_replace
 from pytensor.graph.rewriting.utils import rewrite_graph
 from pytensor.graph.traversal import ancestors
-from pytensor.xtensor.type import xtensor_constant, XTensorVariable
 from pytensor.xtensor.vectorization import vectorize_graph
 from pytensor.compile.function.types import Function
+from pytensor.xtensor.type import as_xtensor, xtensor_constant, xtensor
 
 
 def extract_response_distribution(
@@ -122,7 +122,7 @@ def extract_response_distribution(
     return response_distribution
 
 
-def replace_variable_by_optimization_variable(pymc_model, name, xr_data):
+def replace_variable_by_optimization_variable(pymc_model, name, xr_data: DataArray):
     """Replace a variable in the PyMC model graph with an optimization variable.
 
     Parameters
@@ -140,7 +140,7 @@ def replace_variable_by_optimization_variable(pymc_model, name, xr_data):
         A tuple containing the optimization variable (as an xtensor)
         and the PyTensor graph of the model with the variable replaced.
     """
-    input_flat = ptx.xtensor(
+    input_flat = xtensor(
         name=f"{name}_flat",
         shape=(xr_data.size,),
         dims=(f"{name}_flat",),
@@ -155,6 +155,66 @@ def replace_variable_by_optimization_variable(pymc_model, name, xr_data):
     return input_flat, pm.do(
         pymc_model,
         {name: input_variable},
+    )
+
+
+def replace_variable_by_repeated_optimization_variable(
+    pymc_model, name, xr_data: DataArray, n_repeat
+):
+    """Replace a variable in the PyMC model graph with a repeated optimization variable.
+
+    Parameters
+    ----------
+    pymc_model : Model
+        The PyMC model containing the variable to replace.
+    name : str
+        The name of the variable to replace.
+    xr_data : xarray.DataArray
+        The xarray DataArray containing the data for the variable,
+        used to determine the shape and dimensions of the optimization variable.
+    n_repeat : int
+        The number of times to repeat the optimization variable along the new dimension.
+
+    Returns
+    -------
+    tuple
+        A tuple containing the repeated optimization variable (as an xtensor)
+        and the PyTensor graph of the model with the variable replaced.
+
+    Raises
+    ------
+    AssertionError
+        If `xr_data` does not have exactly 2 dimensions or
+        if the first dimension of `xr_data` does not have size 1,
+        which are required for the broadcasting to work correctly.
+
+    """
+    assert len(xr_data.shape) == 2, "Expected xr_data to have 2 dimensions"
+    assert (
+        xr_data.shape[0] == 1
+    ), "Expected the first dimension of xr_data to have size 1 for broadcasting"
+
+    input_flat = xtensor(
+        name=f"{name}_flat",
+        shape=(xr_data.size,),
+        dims=(f"{name}_flat",),
+    )
+
+    repeated_values = pt.repeat(
+        input_flat.values[None, ...],  # pylint: disable=E1101, no-member
+        repeats=n_repeat,
+        axis=0,
+    )
+
+    repeated_xtensor = as_xtensor(
+        repeated_values,
+        dims=xr_data.dims,
+        name=f"{name}_repeated",
+    )
+
+    return input_flat, pm.do(
+        pymc_model,
+        {name: repeated_xtensor},
     )
 
 
@@ -206,9 +266,7 @@ def function_with_grad(x: Variable, y: Variable) -> Function:
     )
 
 
-def define_constraint_function(
-    x: XTensorVariable, constraint_fun: Callable, constraint_type="eq"
-):
+def define_constraint_function(x, constraint_fun: Callable, constraint_type="eq"):
     """Define a constraint function for optimization, including its Jacobian.
 
     Parameters
