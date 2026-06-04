@@ -1,6 +1,4 @@
-"""This module provides utilities for handling and
-visualizing priors in PyMC-based MMM models, including:
-"""
+"""Utilities to define and visualize priors for PyMC-based MMM models."""
 
 from dataclasses import dataclass, field
 
@@ -24,7 +22,7 @@ PriorType = Literal[
 
 @dataclass(slots=True)
 class PriorSpec:
-    """Spécification de prior PyMC."""
+    """Specification of a prior distribution used in model construction."""
 
     kind: PriorType
     params: dict[str, float] = field(default_factory=dict)

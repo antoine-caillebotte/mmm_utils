@@ -1,8 +1,9 @@
-"""this module defines saturation transformations for media response modeling,
-including logistic and Hill functions, as well as an identity transformation for no saturation.
-Each transformation can handle both numeric and symbolic parameters,
-making them suitable for use in PyMC models with PyTensor.
-The abstract base class `Saturation"""
+"""Saturation transformations for media response modeling.
+
+The module provides an identity transformation (no saturation) and a logistic
+saturation transformation. Implementations accept numeric or symbolic
+parameters so they can be used directly inside PyMC/PyTensor computation graphs.
+"""
 
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
@@ -109,8 +110,7 @@ class Saturation(ABC):
         Parameters
         ----------
         kind : SaturationType
-            Saturation type identifier. One of ``"none"``, ``"logistic"``,
-            or ``"hill"``.
+            Saturation type identifier. One of ``"None"`` or ``"Logistic"``.
 
         Returns
         -------

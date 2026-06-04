@@ -15,16 +15,22 @@ from vacances_scolaires_france import SchoolHolidayDates
 
 
 def create_holiday_columns(data, date_column="date", column_by_zone: bool = False):
-    """Add columns to a dataframe with the number of holidays in the week of the date in date_column
+    """Add weekly public and school-holiday indicators to a dataframe.
 
-    Args:
-        data (pd.DataFrame): dataframe with a date column
-        date_column (str, optional): name of the date column. Defaults to "date".
-        column_by_zone (bool, optional): whether to create one column per zone or
-        a single column with the total number of holidays. Defaults to False.
+    Parameters
+    ----------
+    data : pd.DataFrame
+        Input dataframe containing a date column.
+    date_column : str, optional
+        Name of the date column in ``data``.
+    column_by_zone : bool, optional
+        If ``True``, add one school-holiday column per zone (A/B/C).
+        If ``False``, add a single averaged ``school_holidays`` column.
 
-    Returns:
-        pd.DataFrame: dataframe with new columns
+    Returns
+    -------
+    pd.DataFrame
+        Dataframe with holiday feature columns added.
     """
 
     school_holidays = SchoolHolidayDates()

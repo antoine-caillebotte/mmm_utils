@@ -19,7 +19,7 @@ class TimelineDataBuffer:
 
 @dataclasses.dataclass
 class DataHandler:
-    """Internal buffer for caching timeline data and derived DataFrames."""
+    """Validated accessor around the raw input dataframe and column names."""
 
     data: pd.DataFrame | None = None
     target_name: str | None = None
@@ -61,7 +61,7 @@ class DataHandler:
             )
 
     def get_spendi(self, i: int, m: str) -> float:
-        """Get the media spend for media media *m* at index *i*.
+        """Get media spend for channel *m* at row index *i*.
 
         Parameters
         ----------

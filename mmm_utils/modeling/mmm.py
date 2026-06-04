@@ -23,7 +23,7 @@ from .saturation import Saturation, SaturationType
 
 @dataclass(slots=True)
 class MediaTransformSpec:
-    """Configuration adstock + saturation pour un média."""
+    """Adstock and saturation configuration for one media channel."""
 
     adstock: AdstockType = "Geometric"
     adstock_params: dict[str, float] = field(
@@ -53,7 +53,7 @@ class MediaTransformSpec:
 
 @dataclass(slots=True)
 class MMMConfig:  # pylint: disable=too-many-instance-attributes
-    """Configuration principale MMM."""
+    """Main configuration object for the MMM model."""
 
     date_name: str = "date"
     media_names: list[str] = field(default_factory=list)
@@ -106,7 +106,7 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
 
 
 class MMM:  # pylint: disable=too-many-instance-attributes
-    """Framework MMM bayésien PyMC natif avec backend numpyro."""
+    """PyMC-based Bayesian MMM framework using the NumPyro NUTS backend."""
 
     def __init__(self, config: MMMConfig) -> None:
         self.config = config
