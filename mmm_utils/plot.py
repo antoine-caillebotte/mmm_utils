@@ -2,6 +2,7 @@
 
 from collections.abc import Iterable
 
+import arviz as az
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -10,6 +11,54 @@ import pandas as pd
 from .timeline import Timeline
 
 tab20colors = plt.get_cmap("tab20").colors
+
+
+def plot_posterior_predictive_y(mmm):
+    """Plot posterior predictive distribution of ``y`` with observed data.
+
+    Parameters
+    ----------
+    mmm : MediaMixModel
+        Fitted media mix model containing inference data with posterior predictive samples.
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        Matplotlib figure containing the plot.
+    ax : matplotlib.axes.Axes
+        Axes containing the posterior predictive distribution and observed data.
+    """
+    fig, ax = plt.subplots(figsize=(10, 4))
+
+    posterior_predictive_y = mmm.idata.posterior_predictive.y
+    date = mmm.idata.posterior_predictive.date
+
+    for i, hdi_prob in enumerate([0.94, 0.5]):
+        az.plot_hdi(
+            x=date,
+            y=posterior_predictive_y.unstack().transpose(..., "date"),
+            smooth=False,
+            color="C0",
+            hdi_prob=hdi_prob,
+            fill_kwargs={"alpha": 0.3 + i * 0.1, "label": f"{hdi_prob:.0%} HDI"},
+            ax=ax,
+        )
+
+    _ = sns.lineplot(
+        x=date,
+        y=posterior_predictive_y.mean(dim=["chain", "draw"]),
+        color="blue",
+        label="Predicted",
+        ax=ax,
+    )
+    sns.lineplot(
+        x=date,
+        y=mmm.idata.observed_data.y,
+        color="black",
+        label="Observed",
+        ax=ax,
+    )
+
+    return fig, ax
 
 
 def plot_controls_variable(data, controls):
