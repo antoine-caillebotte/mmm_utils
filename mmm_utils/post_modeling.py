@@ -214,35 +214,34 @@ def rope_probability_test(  # pylint: disable=too-many-arguments, too-many-local
         p_above_rope = float(np.mean(samples > rope_high))
 
         if p_in_rope >= decision_threshold:
-            decision = "practically_equivalent"
+            decision = "~"
         elif p_above_rope >= decision_threshold:
-            decision = "practically_greater"
+            decision = ">"
         elif p_below_rope >= decision_threshold:
-            decision = "practically_lower"
+            decision = "<"
         else:
-            decision = "undetermined"
+            decision = "?"
 
         alpha = 1 - decision_threshold
 
         def _format_with_alpha(probability: float) -> str:
             rounded_probability = round(probability, 2)
-            n_alpha = (
-                int(max(0, round((1.0 - rounded_probability) / alpha)))
-                if alpha > 0
-                else 0
-            )
+            n_alpha = int(max(0, (1.0 - probability) / alpha))
             if n_alpha > 4:
                 n_alpha = 0
             else:
                 n_alpha = 4 - n_alpha
+
+            if n_alpha == 0:
+                return f"{rounded_probability:.2f}"
 
             return f"{rounded_probability:.2f} ({'*' * n_alpha})"
 
         rows.append(
             {
                 "parameter": parameter_name,
-                "rope_low": float(rope_low),
-                "rope_high": float(rope_high),
+                "rope_low": f"{rope_low:.2e}",
+                "rope_high": f"{rope_high:.2e}",
                 "lower": _format_with_alpha(p_below_rope),
                 "in": _format_with_alpha(p_in_rope),
                 "greater": _format_with_alpha(p_above_rope),
@@ -279,4 +278,4 @@ def rope_probability_test(  # pylint: disable=too-many-arguments, too-many-local
     if verbatim:
         return rope_df
 
-    return rope_df[rope_df["decision"] == "undetermined"]
+    return rope_df[rope_df["decision"] == "?"]
