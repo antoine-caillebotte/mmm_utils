@@ -79,6 +79,20 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
         default_factory=lambda: PriorSpec("Laplace", {"mu": 0.0, "b": 0.5})
     )
 
+    def __post_init__(self):
+        if self.seasonality_order < 0:
+            raise ValueError("seasonality_order must be non-negative")
+        if not set(self.media_transforms) <= set(self.media_names):
+            raise ValueError(
+                "media_transforms keys must be a subset of media_names. "
+                f"Got {set(self.media_transforms)} vs {set(self.media_names)}"
+            )
+
+        if self.include_intercept and self.prior_intercept is None:
+            raise ValueError(
+                "prior_intercept must be specified if include_intercept is True"
+            )
+
     # def get_media_with_transforms(
     #     self, transform_fct: Callable[[str, MediaTransformSpec], bool]
     # ) -> dict[str, MediaTransformSpec]:
@@ -117,6 +131,9 @@ class MMM:  # pylint: disable=too-many-instance-attributes
         self._y: ArrayLike | None = None
         self._season: ArrayLike | None = None
         self._scales: dict[str, np.ndarray | float] = {}
+
+        self.adstocks = {}
+        self.saturations = {}
 
     def _build_media_contribution(self, x_m):
         """Transform media channels with adstock operators.
@@ -165,6 +182,9 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             # === collect transformed column ===
             col = col.expand_dims(dim="media")
             cols.append(col)
+
+            self.adstocks[name] = {"function": ad, "params": adstock_params}
+            self.saturations[name] = {"function": sat, "params": saturation_params}
 
         return ptx.concat(cols, dim="media").transpose("date", "media")
 
@@ -230,7 +250,10 @@ class MMM:  # pylint: disable=too-many-instance-attributes
         # === Build seasonality features ===
         seas = fourier_features(n, order=self.config.seasonality_order)
         seas_name = sum(
-            [[f"sin[{i}]", f"cos[{i}]"] for i in range(self.config.seasonality_order)],
+            [
+                [f"sin[{i + 1}]", f"cos[{i + 1}]"]
+                for i in range(self.config.seasonality_order)
+            ],
             [],
         )
         self._season = seas
