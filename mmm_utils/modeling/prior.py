@@ -139,38 +139,49 @@ def _prior_pdf(prior_spec: PriorSpec, x_grid: np.ndarray, name_idx: int) -> np.n
         Prior PDF values.
     """
 
-    def _return_param(name, default_value):
-        param = prior_spec.params.get(name, default_value)
+    def _return_param(name):
+        param = prior_spec.params.get(name)
         if isinstance(param, np.ndarray) and param.size > 1:
             return param[name_idx]
         return param
 
     if prior_spec.kind == "HalfNormal":
-        dist = pm.HalfNormal.dist(sigma=_return_param("sigma", 1.0))
+        dist = pm.HalfNormal.dist(sigma=_return_param("sigma"))
     elif prior_spec.kind == "Normal":
         dist = pm.Normal.dist(
-            mu=_return_param("mu", 0.0),
-            sigma=_return_param("sigma", 1.0),
+            mu=_return_param("mu"),
+            sigma=_return_param("sigma"),
         )
     elif prior_spec.kind == "Gamma":
-        dist = pm.Gamma.dist(
-            alpha=_return_param("alpha", 2.0),
-            beta=_return_param("beta", 1.0),
-        )
+        if "alpha" in prior_spec.params and "beta" in prior_spec.params:
+            dist = pm.Gamma.dist(
+                alpha=_return_param("alpha"),
+                beta=_return_param("beta"),
+            )
+        elif "mu" in prior_spec.params and "sigma" in prior_spec.params:
+            dist = pm.Gamma.dist(
+                mu=_return_param("mu"),
+                sigma=_return_param("sigma"),
+            )
+        else:
+            raise ValueError(
+                "Gamma prior requires either (alpha, beta) or (mu, sigma) parameters."
+            )
+
     elif prior_spec.kind == "Beta":
         dist = pm.Beta.dist(
-            alpha=_return_param("alpha", 2.0),
-            beta=_return_param("beta", 2.0),
+            alpha=_return_param("alpha"),
+            beta=_return_param("beta"),
         )
     elif prior_spec.kind == "LogNormal":
         dist = pm.LogNormal.dist(
-            mu=_return_param("mu", 0.0),
-            sigma=_return_param("sigma", 1.0),
+            mu=_return_param("mu"),
+            sigma=_return_param("sigma"),
         )
     elif prior_spec.kind in ("Laplace", "LaPlace"):
         dist = pm.Laplace.dist(
-            mu=_return_param("mu", 0.0),
-            b=_return_param("b", 1.0),
+            mu=_return_param("mu"),
+            b=_return_param("b"),
         )
     else:
         raise ValueError(f"Unsupported prior type for plotting: {prior_spec.kind}")
@@ -294,7 +305,7 @@ def plot_prior_vs_posterior(  # pylint: disable=too-many-locals
             cut=0 if np.min(posterior_sample) >= 0 else 3,
         )
 
-        y_max = ax.get_ylim()[1]
+        y_max = 1.2 * ax.get_ylim()[1]
         x_min = min(float(np.min(prior_sample)), float(np.min(posterior_sample)))
         x_max = max(float(np.max(prior_sample)), float(np.max(posterior_sample)))
         x_grid = np.linspace(x_min, x_max, 200)
