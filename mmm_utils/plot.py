@@ -30,6 +30,11 @@ def plot_posterior_predictive_y(mmm):
     fig, ax = plt.subplots(figsize=(10, 4))
 
     posterior_predictive_y = mmm.idata.posterior_predictive.y
+    posterior_season = (
+        mmm.idata.posterior.yearly_seasonality_contribution
+        + mmm.idata.posterior.intercept_contribution
+    )
+
     date = mmm.idata.posterior_predictive.date
 
     for i, hdi_prob in enumerate([0.94, 0.5]):
@@ -48,6 +53,13 @@ def plot_posterior_predictive_y(mmm):
         y=posterior_predictive_y.mean(dim=["chain", "draw"]),
         color="blue",
         label="Predicted",
+        ax=ax,
+    )
+    _ = sns.lineplot(
+        x=date,
+        y=posterior_season.mean(dim=["chain", "draw"]),
+        color="green",
+        label="Seasonality + Intercept",
         ax=ax,
     )
     sns.lineplot(
@@ -726,4 +738,86 @@ def plot_summary_spend_per_media(timeline):  # pylint: disable=too-many-locals
     ax.spines["right"].set_visible(False)
 
     plt.tight_layout()
+    return fig, ax
+
+
+def plot_saturation_curves(  # pylint: disable=too-many-locals
+    curves, mmm, data, media
+):
+    """Plot saturation curves for each media channel.
+
+    Parameters
+    ----------
+    curves : dict[str, xarray.DataArray]
+        Dictionary mapping media channel names to their corresponding saturation curve data arrays.
+    mmm : MediaMixModel
+        Fitted media mix model containing saturation specifications and inference data.
+    data : pandas.DataFrame
+        Input data containing media cost columns and observed contributions.
+    media : list[str]
+        Media channel names to plot. These should be columns in ``data`` and
+        correspond to media channels in the model.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        Matplotlib figure containing the saturation curve plots.
+    axes : dict[str, matplotlib.axes.Axes]
+        Dictionary mapping media channel names to their corresponding Axes objects.
+    """
+    fig, ax = plt.subplots(len(media) // 3 + 1, 3, figsize=(16, 5))
+    media_scales = mmm._scales["media"]  # pylint: disable=protected-access
+    target_scale = mmm._scales["y"][0]  # pylint: disable=protected-access
+
+    contrib = mmm.idata.posterior.media_contribution.sel(media=media).mean(
+        dim=["chain", "draw"]
+    )
+
+    for i, m in enumerate(media):
+        curve = curves[m]
+
+        xx = (curve.coords["x"]).values * media_scales[i]
+        beta = (
+            mmm.idata.posterior["beta_media"]
+            .sel(media=m)
+            .mean(dim=["chain", "draw"])
+            .values
+        )
+        yy = beta * curve.mean(dim=["chain", "draw"]).values * target_scale
+
+        axi = ax[i // 3, i % 3]
+
+        axi.plot(
+            xx,
+            yy,
+            label=m,
+        )
+
+        axi.plot(
+            data[m],
+            contrib.sel(media=m) * target_scale,
+            "o",
+            alpha=0.5,
+            label=m,
+        )
+
+        # present_contrib = yy[np.argmin(np.abs(xx - total_spend[m]))]
+        # axi.plot(
+        #     total_spend[m],
+        #     present_contrib,
+        #     "X",
+        #     markersize=10,
+        #     color="red",
+        # )
+        # axi.axvline(total_spend[m], color="black", lw=0.5, ls="--")
+        # axi.axhline(present_contrib, color="black", lw=0.5, ls="--")
+
+        axi.set_title(m)
+
+    for axi in ax.ravel():
+        if not axi.has_data():
+            axi.remove()
+
+    plt.tight_layout()
+
     return fig, ax
