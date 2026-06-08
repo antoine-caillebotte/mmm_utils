@@ -85,7 +85,7 @@ def _make_prior(name: str, spec: PriorSpec, dims: str | tuple[str, ...] | None =
             return pmd.Gamma(
                 name,
                 alpha=get_param("alpha"),
-                beta=get_param("beta"),
+                beta=1 / get_param("beta"),
                 dims=dims,
             )
         if "mu" in spec.params and "sigma" in spec.params:
@@ -156,7 +156,7 @@ def _prior_pdf(prior_spec: PriorSpec, x_grid: np.ndarray, name_idx: int) -> np.n
         if "alpha" in prior_spec.params and "beta" in prior_spec.params:
             dist = pm.Gamma.dist(
                 alpha=_return_param("alpha"),
-                beta=_return_param("beta"),
+                beta=1 / _return_param("beta"),
             )
         elif "mu" in prior_spec.params and "sigma" in prior_spec.params:
             dist = pm.Gamma.dist(

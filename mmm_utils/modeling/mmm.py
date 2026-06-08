@@ -176,15 +176,15 @@ class MMM:  # pylint: disable=too-many-instance-attributes
                 saturation_params[pname] = _make_prior(
                     f"saturation_{pname}[{name}]", pspec
                 )
-            sat = Saturation.from_spec(spec.saturation)
-            col = sat(col, params=saturation_params)
+            sat = Saturation.from_spec(spec.saturation, params=saturation_params)
+            col = sat(col)
 
             # === collect transformed column ===
             col = col.expand_dims(dim="media")
             cols.append(col)
 
             self.adstocks[name] = {"function": ad, "params": adstock_params}
-            self.saturations[name] = {"function": sat, "params": saturation_params}
+            self.saturations[name] = sat
 
         return ptx.concat(cols, dim="media").transpose("date", "media")
 
@@ -424,6 +424,26 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             )
 
         self.idata.extend(prior)
+
+    def sample_saturation_curves(self, x_max=2.0):
+        """Sample saturation curves for each media channel.
+
+        Parameters
+        ----------
+        x_max : float, optional
+            Maximum value of the input range for the saturation curves, by default 2.0.
+
+        Returns
+        -------
+        dict
+            Dictionary mapping each media channel name to its sampled saturation curve.
+        """
+        x = np.linspace(0, x_max, 200)
+        curves = {}
+        for _, m in enumerate(self.config.media_names):
+            curves[m] = self.saturations[m].sample_saturation_curve(self, x)
+
+        return curves
 
     def compute_contributions(self) -> pd.DataFrame:
         """Compute posterior mean contributions by component.
