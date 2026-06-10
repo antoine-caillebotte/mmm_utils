@@ -398,7 +398,11 @@ class Timeline:
 
         timeline: dict[str, list[dict]] = {}
         dates = all_contributions.coords[self.dim("date")].values
-        contrib = all_contributions[self.dim("media")].values
+        contrib = (
+            all_contributions[self.dim("media")]
+            .sel({self.dim("media"): self._data.media})
+            .values
+        )
 
         for i, date_val in enumerate(dates):
             entries: list[dict] = []
