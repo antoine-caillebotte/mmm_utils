@@ -283,13 +283,13 @@ class Optimizer:
         if constant_budget:
             constraint = define_constraint_function(
                 optimizable_budget,
-                lambda x: self._campaign_period * x.sum() - budget_total,
+                lambda x: budget_total - self._campaign_period * x.sum(),
                 constraint_type="eq",
             )
         else:
             constraint = define_constraint_function(
                 optimizable_budget,
-                lambda x: x.sum() - budget_total,
+                lambda x: budget_total - x.sum(),
                 constraint_type="eq",
             )
 
