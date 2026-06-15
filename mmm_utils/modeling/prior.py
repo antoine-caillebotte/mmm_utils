@@ -16,7 +16,14 @@ import matplotlib.pyplot as plt
 
 
 PriorType = Literal[
-    "HalfNormal", "Normal", "Gamma", "Beta", "LogNormal", "Laplace", "LaPlace"
+    "TruncatedNormal",
+    "HalfNormal",
+    "Normal",
+    "Gamma",
+    "Beta",
+    "LogNormal",
+    "Laplace",
+    "LaPlace",
 ]
 
 
@@ -66,6 +73,16 @@ def _make_prior(name: str, spec: PriorSpec, dims: str | tuple[str, ...] | None =
         if isinstance(value, np.ndarray) and value.size > 1:
             return pmd.as_xtensor(value, dims=(dims,))
         return value
+
+    if spec.kind == "TruncatedNormal":
+        return pmd.TruncatedNormal(
+            name,
+            mu=get_param("mu"),
+            sigma=get_param("sigma"),
+            lower=get_param("lower"),
+            upper=get_param("upper"),
+            dims=dims,
+        )
 
     if spec.kind == "HalfNormal":
         return pmd.HalfNormal(
@@ -145,7 +162,14 @@ def _prior_pdf(prior_spec: PriorSpec, x_grid: np.ndarray, name_idx: int) -> np.n
             return param[name_idx]
         return param
 
-    if prior_spec.kind == "HalfNormal":
+    if prior_spec.kind == "TruncatedNormal":
+        dist = pm.TruncatedNormal.dist(
+            mu=_return_param("mu"),
+            sigma=_return_param("sigma"),
+            lower=_return_param("lower"),
+            upper=_return_param("upper"),
+        )
+    elif prior_spec.kind == "HalfNormal":
         dist = pm.HalfNormal.dist(sigma=_return_param("sigma"))
     elif prior_spec.kind == "Normal":
         dist = pm.Normal.dist(
