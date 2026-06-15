@@ -113,7 +113,7 @@ class Saturation(ABC):
         Parameters
         ----------
         kind : SaturationType
-            Saturation type identifier. One of ``"None"`` or ``"Logistic"``.
+            Saturation type identifier. One of ``"None"``, ``"Logistic"``, or ``"Hill"``.
         params : dict[str, ParamLike]
             Parameters to initialize the saturation transformer.
 
@@ -132,6 +132,8 @@ class Saturation(ABC):
             return IdentitySaturation()
         if kind == "Logistic":
             return LogisticSaturation(mandatory_params=["lam"], params=params)
+        if kind == "Hill":
+            return HillSaturation(mandatory_params=["n", "k"], params=params)
         raise ValueError(
             f"Unknown saturation kind: {kind},  available options are: {SaturationType.__args__}"
         )
@@ -216,7 +218,7 @@ class LogisticSaturation(Saturation):
         Returns
         -------
         np.ndarray | pt.TensorVariable
-            Saturated signal in (-1, 1).
+            Saturated signal in (0, 1).
         """
         self._check_params(self.params)
 
@@ -225,3 +227,36 @@ class LogisticSaturation(Saturation):
         exp_lam_x = ptxmath.exp(-lam * x)  # pylint: disable= too-many-function-args
 
         return (1 - exp_lam_x) / (1 + exp_lam_x)
+
+
+# ------------------------------------------------------------------
+# Hill saturation
+# ------------------------------------------------------------------
+
+
+class HillSaturation(Saturation):
+    """Hill saturation with two parameters: ``n`` (shape) and ``k`` (half-saturation point)."""
+
+    def __call__(self, x: ArrayLike, **kwargs) -> np.ndarray | pt.TensorVariable:
+        """Apply Hill saturation: ``(x^n) / (k^n + x^n)``.
+
+        Parameters
+        ----------
+        x : ArrayLike
+            Input media signal.
+
+        Returns
+        -------
+        np.ndarray | pt.TensorVariable
+            Saturated signal in (0, 1).
+        """
+        self._check_params(self.params)
+
+        x = as_xtensor(x)
+        n = as_xtensor(self.params["n"])
+        k = as_xtensor(self.params["k"])
+
+        x_n = x / (x.max() + 1e-8)
+        x_p = ptxmath.pow(x_n, n)  # pylint: disable= too-many-function-args
+        k_p = ptxmath.pow(k, n)  # pylint: disable= too-many-function-args
+        return x_p / (k_p + x_p)
