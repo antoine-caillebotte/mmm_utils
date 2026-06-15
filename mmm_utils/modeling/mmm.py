@@ -62,6 +62,7 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
     seasonality_order: int = 0
     media_transforms: dict[str, MediaTransformSpec] = field(default_factory=dict)
     random_seed: int = 42
+    umbrella_driver: str | None = None
 
     prior_intercept: PriorSpec = field(
         default_factory=lambda: PriorSpec("Normal", {"mu": 0.0, "sigma": 2.0})
@@ -83,9 +84,10 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
         if self.seasonality_order < 0:
             raise ValueError("seasonality_order must be non-negative")
         if not set(self.media_transforms) <= set(self.media_names):
+            not_in_media = set(self.media_transforms) - set(self.media_names)
             raise ValueError(
                 "media_transforms keys must be a subset of media_names. "
-                f"Got {set(self.media_transforms)} vs {set(self.media_names)}"
+                f"Got {not_in_media} not in {set(self.media_names)}"
             )
 
         if self.include_intercept and self.prior_intercept is None:
@@ -134,6 +136,36 @@ class MMM:  # pylint: disable=too-many-instance-attributes
 
         self.adstocks = {}
         self.saturations = {}
+
+    def _apply_umbrella_effect(self, cols):
+        """Apply a shared multiplicative uplift driven by one media channel.
+
+        Parameters
+        ----------
+        cols : list
+            List of transformed media columns (one per media channel), where each
+            element is an xarray/pytensor-like 1D object indexed on the date
+            dimension.
+
+        Returns
+        -------
+        list
+            The same list with all non-driver channels multiplied by
+            ``1 + umbrella * driver_channel``. The driver channel itself is left
+            unchanged.
+        """
+
+        umbrella = _make_prior("umbrella", PriorSpec("HalfNormal", {"sigma": 0.3}))
+        tv_idx = self.config.media_names.index(self.config.umbrella_driver)
+
+        tv_nat_h = cols[tv_idx]
+        boost = 1.0 + umbrella * tv_nat_h
+
+        for j, _ in enumerate(self.config.media_names):
+            if j != tv_idx:
+                cols[j] = cols[j] * boost
+
+        return cols
 
     def _build_media_contribution(self, x_m):
         """Transform media channels with adstock operators.
@@ -186,6 +218,9 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             self.adstocks[name] = {"function": ad, "params": adstock_params}
             self.saturations[name] = sat
 
+        if self.config.umbrella_driver is not None:
+            cols = self._apply_umbrella_effect(cols)
+
         return ptx.concat(cols, dim="media").transpose("date", "media")
 
     def _process_data(self, X, y, rescale: bool = True):  # pylint: disable=invalid-name
@@ -217,6 +252,10 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             )
 
             self._y, self._scales["y"] = max_abs_scaler(np.asarray(y, dtype=np.float64))
+            # y_log = np.log1p(np.asarray(y, dtype=np.float64))
+            # self._y = (y_log - y_log.mean()) / y_log.std()
+            # self._scales["y"] = {"mean": y_log.mean(), "std": y_log.std()}
+
         else:
             self._X_media = np.asarray(X_media, dtype=np.float64)
             self._X_control = np.asarray(X_control, dtype=np.float64)
