@@ -13,13 +13,17 @@ from .timeline import Timeline
 tab20colors = plt.get_cmap("tab20").colors
 
 
-def plot_posterior_predictive_y(mmm):
+def plot_posterior_predictive_y(mmm, plot_seasonality: bool = True):
     """Plot posterior predictive distribution of ``y`` with observed data.
 
     Parameters
     ----------
     mmm : MediaMixModel
         Fitted media mix model containing inference data with posterior predictive samples.
+
+    plot_seasonality : bool, default=True
+        If ``True``, overlay the posterior seasonality and intercept contributions.
+
     Returns
     -------
     fig : matplotlib.figure.Figure
@@ -29,11 +33,12 @@ def plot_posterior_predictive_y(mmm):
     """
     fig, ax = plt.subplots(figsize=(10, 4))
 
-    posterior_predictive_y = mmm.idata.posterior_predictive.y
+    target_scale = mmm.scale("y")
+    posterior_predictive_y = mmm.idata.posterior_predictive.y * target_scale
     posterior_season = (
         mmm.idata.posterior.yearly_seasonality_contribution
         + mmm.idata.posterior.intercept_contribution
-    )
+    ) * target_scale
 
     date = mmm.idata.posterior_predictive.date
 
@@ -55,16 +60,17 @@ def plot_posterior_predictive_y(mmm):
         label="Predicted",
         ax=ax,
     )
-    _ = sns.lineplot(
-        x=date,
-        y=posterior_season.mean(dim=["chain", "draw"]),
-        color="green",
-        label="Seasonality + Intercept",
-        ax=ax,
-    )
+    if plot_seasonality:
+        _ = sns.lineplot(
+            x=date,
+            y=posterior_season.mean(dim=["chain", "draw"]),
+            color="green",
+            label="Seasonality + Intercept",
+            ax=ax,
+        )
     sns.lineplot(
         x=date,
-        y=mmm.idata.observed_data.y,
+        y=mmm.idata.observed_data.y * target_scale,
         color="black",
         label="Observed",
         ax=ax,
@@ -360,7 +366,7 @@ def plot_contributions(  # pylint: disable=too-many-arguments,too-many-positiona
             / x[contributions_order].sum(axis=1).to_numpy()[:, None]
         ) * x[timeline.target].to_numpy()[:, None]
 
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(10, 4))
 
     base_mean = x["Baseline"].to_numpy()
 
@@ -394,7 +400,7 @@ def plot_contributions(  # pylint: disable=too-many-arguments,too-many-positiona
     ylim = (np.nanmin(base_mean), np.nanmax(last_fill))
     ylim *= np.array([0.7, 1.1])
 
-    _ = ax.set_ylim(ylim.tolist())
+    # _ = ax.set_ylim(ylim.tolist())
     _ = ax.legend(bbox_to_anchor=(1.01, 1), loc="upper left")
     _ = ax.set(xlabel="Date", ylabel="Y")
 

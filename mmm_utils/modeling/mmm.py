@@ -137,6 +137,27 @@ class MMM:  # pylint: disable=too-many-instance-attributes
         self.adstocks = {}
         self.saturations = {}
 
+    def scale(self, key: str):
+        """Get the scaling factor for a given key.
+
+        Parameters
+        ----------
+        key : str
+            The key for which to retrieve the scaling factor.
+
+        Returns
+        -------
+        float | np.ndarray
+            The scaling factor for the specified key.
+            If the scaling factor is a single value, it returns a float;
+            otherwise, it returns a numpy array.
+        """
+
+        s = self._scales[key].copy()
+        if len(s) == 1:
+            return float(s[0])
+        return s
+
     def _apply_umbrella_effect(self, cols):
         """Apply a shared multiplicative uplift driven by one media channel.
 
