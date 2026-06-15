@@ -1,5 +1,8 @@
 """Timeline utilities for media mix modeling."""
 
+# pyright: reportOptionalIterable=false, reportOptionalMemberAccess=false,
+# pyright: reportOptionalSubscript=false
+
 from __future__ import annotations
 import dataclasses
 
@@ -26,6 +29,16 @@ class DataHandler:
     media: list[str] | None = None
     controls: list[str] | None = None
 
+    def _check_initialized(self) -> None:
+        if self.data is None:
+            raise ValueError("Data is not initialized.")
+        if self.target_name is None:
+            raise ValueError("Target name is not initialized.")
+        if self.media is None:
+            raise ValueError("Media list is not initialized.")
+        if self.controls is None:
+            raise ValueError("Controls list is not initialized.")
+
     @property
     def dates(self) -> pd.Series:
         """Get the dates from the data.
@@ -35,6 +48,7 @@ class DataHandler:
         pandas.Series
                 Series of dates from the data, converted to datetime.
         """
+        self._check_initialized()
         return pd.to_datetime(self.data["date"])
 
     @property
@@ -47,9 +61,12 @@ class DataHandler:
         pandas.Series
                 Series of target variable values from the data.
         """
+        self._check_initialized()
         return self.data[self.target_name]
 
     def __post_init__(self) -> None:
+        self._check_initialized()
+
         required_columns = [self.target_name, *self.media, *self.controls]
         missing_columns = [
             col for col in required_columns if col not in self.data.columns
@@ -68,13 +85,20 @@ class DataHandler:
         i : int
             Index of the row in the data.
         m : str
-            Name of the media media.
+            Name of the media
         Returns
         -------
         float
             Media spend value for media *m* at index *i*, or 0.0 if
             the media is not found or index is out of bounds.
+
+        Raises
+        ------
+        ValueError
+            If the data is not initialized.
         """
+        if self.data is None:
+            raise ValueError("Data is not initialized.")
         if m in self.data.columns:
             if i < len(self.data):
                 return float(self.data[m].iloc[i])
@@ -343,8 +367,12 @@ class Timeline:
             1D array with dimension ``date``, containing the total baseline
             contribution for each date.
         """
-        media = self._get_reduced_contribution(self.dim("media"))
-        control = self._get_reduced_contribution(self.dim("control"))
+        media = self._get_reduced_contribution(self.dim("media")).sel(
+            {self.dim("media"): self._data.media}
+        )
+        control = self._get_reduced_contribution(self.dim("control")).sel(
+            {self.dim("control"): self._data.controls}
+        )
         yearly_seasonality = self._get_reduced_contribution(
             self.dim("yearly_seasonality")
         )
@@ -398,11 +426,7 @@ class Timeline:
 
         timeline: dict[str, list[dict]] = {}
         dates = all_contributions.coords[self.dim("date")].values
-        contrib = (
-            all_contributions[self.dim("media")]
-            .sel({self.dim("media"): self._data.media})
-            .values
-        )
+        contrib = all_contributions[self.dim("media")].values
 
         for i, date_val in enumerate(dates):
             entries: list[dict] = []
