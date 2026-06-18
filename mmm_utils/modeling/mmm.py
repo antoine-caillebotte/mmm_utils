@@ -63,6 +63,7 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
     media_transforms: dict[str, MediaTransformSpec] = field(default_factory=dict)
     random_seed: int = 42
     umbrella_driver: str | None = None
+    prior_umbrella: dict[str, PriorSpec] = field(default_factory=dict)
 
     prior_intercept: PriorSpec = field(
         default_factory=lambda: PriorSpec("Normal", {"mu": 0.0, "sigma": 2.0})
@@ -153,9 +154,7 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             otherwise, it returns a numpy array.
         """
 
-        s = self._scales[key].copy()
-        if len(s) == 1:
-            return float(s[0])
+        s = self._scales[key]
         return s
 
     def _apply_umbrella_effect(self, cols):
@@ -176,15 +175,17 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             unchanged.
         """
 
-        umbrella = _make_prior("umbrella", PriorSpec("HalfNormal", {"sigma": 0.3}))
         tv_idx = self.config.media_names.index(self.config.umbrella_driver)
 
         tv_nat_h = cols[tv_idx]
-        boost = 1.0 + umbrella * tv_nat_h
 
-        for j, _ in enumerate(self.config.media_names):
+        for j, m in enumerate(self.config.media_names):
             if j != tv_idx:
-                cols[j] = cols[j] * boost
+                pspec = self.config.prior_umbrella.get(m, None)
+                if pspec is not None:
+                    umbrella = _make_prior(f"umbrella[{m}]", pspec)
+                    boost = 1.0 + umbrella * tv_nat_h
+                    cols[j] = cols[j] * boost
 
         return cols
 
@@ -267,15 +268,22 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             self._X_media, self._scales["media"] = max_abs_scaler(
                 np.asarray(X_media, dtype=np.float64)
             )
+            self._scales["media"] = dict(
+                zip(self.config.media_names, self._scales["media"])
+            )
 
             self._X_control, self._scales["control"] = max_abs_scaler(
                 np.asarray(X_control, dtype=np.float64)
+            )
+            self._scales["control"] = dict(
+                zip(self.config.control_names, self._scales["control"])
             )
 
             self._y, self._scales["y"] = max_abs_scaler(np.asarray(y, dtype=np.float64))
             # y_log = np.log1p(np.asarray(y, dtype=np.float64))
             # self._y = (y_log - y_log.mean()) / y_log.std()
             # self._scales["y"] = {"mean": y_log.mean(), "std": y_log.std()}
+            self._scales["y"] = float(self._scales["y"][0])
 
         else:
             self._X_media = np.asarray(X_media, dtype=np.float64)
@@ -448,9 +456,10 @@ class MMM:  # pylint: disable=too-many-instance-attributes
                 idata_kwargs={"log_likelihood": True},
             )
 
-            if self.idata["sample_stats"]["diverging"].sum().item() > 0:
+            n_diverging = self.idata["sample_stats"]["diverging"].sum().item()
+            if n_diverging > 0:
                 warnings.warn(
-                    "Divergences detected in sampling!"
+                    f"Divergences detected in sampling: {n_diverging}!"
                     " Consider increasing target_accept or reparameterizing."
                 )
 
@@ -480,10 +489,10 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             prior = pm.sample_prior_predictive(
                 random_seed=self.config.random_seed,
                 return_inferencedata=True,
-                samples=samples,
+                draws=samples,
             )
 
-        self.idata.extend(prior)
+        self.idata.update(prior)
 
     def sample_saturation_curves(self, x_max=2.0):
         """Sample saturation curves for each media channel.
