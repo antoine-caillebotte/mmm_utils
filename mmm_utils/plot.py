@@ -2,81 +2,16 @@
 
 from collections.abc import Iterable
 
-import arviz as az
+
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 
 from .timeline import Timeline
+from .data_logger import data_logger
 
 tab20colors = plt.get_cmap("tab20").colors
-
-
-def plot_posterior_predictive_y(mmm, plot_seasonality: bool = True):
-    """Plot posterior predictive distribution of ``y`` with observed data.
-
-    Parameters
-    ----------
-    mmm : MediaMixModel
-        Fitted media mix model containing inference data with posterior predictive samples.
-
-    plot_seasonality : bool, default=True
-        If ``True``, overlay the posterior seasonality and intercept contributions.
-
-    Returns
-    -------
-    fig : matplotlib.figure.Figure
-        Matplotlib figure containing the plot.
-    ax : matplotlib.axes.Axes
-        Axes containing the posterior predictive distribution and observed data.
-    """
-    fig, ax = plt.subplots(figsize=(10, 4))
-
-    target_scale = mmm.scale("y")
-    posterior_predictive_y = mmm.idata.posterior_predictive.y * target_scale
-    posterior_season = (
-        mmm.idata.posterior.yearly_seasonality_contribution
-        + mmm.idata.posterior.intercept_contribution
-    ) * target_scale
-
-    date = mmm.idata.posterior_predictive.date
-
-    for i, hdi_prob in enumerate([0.94, 0.5]):
-        az.plot_hdi(
-            x=date,
-            y=posterior_predictive_y.unstack().transpose(..., "date"),
-            smooth=False,
-            color="C0",
-            hdi_prob=hdi_prob,
-            fill_kwargs={"alpha": 0.3 + i * 0.1, "label": f"{hdi_prob:.0%} HDI"},
-            ax=ax,
-        )
-
-    _ = sns.lineplot(
-        x=date,
-        y=posterior_predictive_y.mean(dim=["chain", "draw"]),
-        color="blue",
-        label="Predicted",
-        ax=ax,
-    )
-    if plot_seasonality:
-        _ = sns.lineplot(
-            x=date,
-            y=posterior_season.mean(dim=["chain", "draw"]),
-            color="green",
-            label="Seasonality + Intercept",
-            ax=ax,
-        )
-    sns.lineplot(
-        x=date,
-        y=mmm.idata.observed_data.y * target_scale,
-        color="black",
-        label="Observed",
-        ax=ax,
-    )
-
-    return fig, ax
 
 
 def plot_controls_variable(data, controls):
@@ -348,6 +283,7 @@ def plot_contributions(  # pylint: disable=too-many-arguments,too-many-positiona
     ax : matplotlib.axes.Axes
         Axes containing the stacked contribution plot.
     """
+
     x = timeline.outcome_df
 
     assert "date" in x.columns, "x must contain a 'date' column."
@@ -397,12 +333,10 @@ def plot_contributions(  # pylint: disable=too-many-arguments,too-many-positiona
             ax=ax,
         )
 
-    ylim = (np.nanmin(base_mean), np.nanmax(last_fill))
-    ylim *= np.array([0.7, 1.1])
-
-    # _ = ax.set_ylim(ylim.tolist())
     _ = ax.legend(bbox_to_anchor=(1.01, 1), loc="upper left")
     _ = ax.set(xlabel="Date", ylabel="Y")
+
+    data_logger.direct_to_csv("contributions.csv", dataframe=x)
 
     return fig, ax
 
@@ -773,16 +707,18 @@ def plot_saturation_curves(  # pylint: disable=too-many-locals
     """
     fig, ax = plt.subplots(len(media) // 3 + 1, 3, figsize=(16, 5))
     media_scales = mmm._scales["media"]  # pylint: disable=protected-access
-    target_scale = mmm._scales["y"][0]  # pylint: disable=protected-access
+    target_scale = mmm._scales["y"]  # pylint: disable=protected-access
 
     contrib = mmm.idata.posterior.media_contribution.sel(media=media).mean(
         dim=["chain", "draw"]
     )
 
+    data_logger.clear()
+
     for i, m in enumerate(media):
         curve = curves[m]
 
-        xx = (curve.coords["x"]).values * media_scales[i]
+        xx = (curve.coords["x"]).values * media_scales[m]
         beta = (
             mmm.idata.posterior["beta_media"]
             .sel(media=m)
@@ -797,6 +733,9 @@ def plot_saturation_curves(  # pylint: disable=too-many-locals
             xx,
             yy,
             label=m,
+        )
+        data_logger.record(
+            **{f"media_{m}_saturation_x": xx, f"media_{m}_saturation_y": yy}
         )
 
         axi.plot(
@@ -825,5 +764,5 @@ def plot_saturation_curves(  # pylint: disable=too-many-locals
             axi.remove()
 
     plt.tight_layout()
-
+    data_logger.flush_to_csv("saturation_curves.csv")
     return fig, ax
