@@ -257,12 +257,22 @@ def _resolve_prior_spec_for_var(mmm, var: str, media_name: str) -> PriorSpec:
             spec = cfg.media_transforms[media_name].adstock_priors.get(param_name)
             return spec
 
-    # var = saturation_lam & media_name = TV, SEA], ...
-    if var == "saturation_lam" and media_name in cfg.media_transforms.keys():
-        spec = cfg.media_transforms[media_name].saturation_priors.get("lam")
-        return spec
+    # var = saturation_lam, saturation_k, ... & media_name = TV, SEA, ...
+    if media_name in cfg.media_transforms.keys():
+        match = re.fullmatch(r"saturation_(\w+)", var)
+        if match:
+            param_name = match.group(1)
+            saturation_priors = cfg.media_transforms[media_name].saturation_priors
+            if param_name in saturation_priors.keys():
+                spec = saturation_priors.get(param_name)
+                return spec
 
-    raise ValueError(f"Cannot resolve prior specification for variable '{var}'")
+    if var == "umbrella" and media_name in cfg.prior_umbrella:
+        return cfg.prior_umbrella[media_name]
+
+    raise ValueError(
+        f"Cannot resolve prior specification for variable '{var}' and media '{media_name}'."
+    )
 
 
 def plot_prior_vs_posterior(  # pylint: disable=too-many-locals
