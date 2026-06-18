@@ -3,31 +3,30 @@
 from typing import Callable
 
 
+from xarray import DataTree
 from xarray import DataArray
 import arviz as az
-from arviz import InferenceData
 from pymc.model.core import Model
 
 import pymc as pm
 from pymc.pytensorf import rvs_in_graph
 
 import pytensor.tensor as pt
-from pytensor.compile.function import function
 from pytensor.graph.basic import Variable
 from pytensor.graph.replace import clone_replace
 from pytensor.graph.rewriting.utils import rewrite_graph
 from pytensor.graph.traversal import ancestors
 from pytensor.xtensor.vectorization import vectorize_graph
-from pytensor.compile.function.types import Function
+from pytensor.compile import Function, function as compile_function
 from pytensor.xtensor.type import as_xtensor, xtensor_constant, xtensor
 
 
 def extract_response_distribution(
     pymc_model: Model,
-    idata: InferenceData,
+    idata: DataTree,
     response_variable: str,
 ):
-    """Extract the response distribution from a PyMC model and InferenceData.
+    """Extract the response distribution from a PyMC model and .
     Rewrites the graph setting the response variable as the output, and replacing
     all free RVs in the graph with xtensor constants containing their posterior samples.
 
@@ -35,8 +34,8 @@ def extract_response_distribution(
     ----------
     pymc_model : Model
         The PyMC model containing the response variable.
-    idata : InferenceData
-        InferenceData object containing posterior samples.
+    idata : DataTree
+         object containing posterior samples.
     response_variable : str
         Name of the response variable in the model.
 
@@ -51,7 +50,7 @@ def extract_response_distribution(
         If RVs are found in the extracted graph after processing, which indicates a bug in the
     """
 
-    # Convert InferenceData to a sample-major xarray
+    # Convert  to a sample-major xarray
     posterior = az.extract(idata).transpose("sample", ...)  # type: ignore
 
     # The PyMC variable to extract
@@ -260,7 +259,7 @@ def function_with_grad(x: Variable, y: Variable) -> Function:
     """
     y_grad = add_grad_to_graph(y, x)
 
-    return function(
+    return compile_function(
         inputs=[x],
         outputs=[y, y_grad],
     )
@@ -290,12 +289,12 @@ def define_constraint_function(x, constraint_fun: Callable, constraint_type="eq"
     constraint_fun_jac = add_grad_to_graph(constraint_tensor, x)
 
     # Compile symbolic => python callables
-    compiled_fun = function(
+    compiled_fun = compile_function(
         inputs=[x],
         outputs=constraint_tensor,
         # on_unused_input="ignore",
     )
-    compiled_jac = function(
+    compiled_jac = compile_function(
         inputs=[x],
         outputs=constraint_fun_jac,
         # on_unused_input="ignore",
