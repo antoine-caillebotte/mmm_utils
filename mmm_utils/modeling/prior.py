@@ -32,7 +32,7 @@ class PriorSpec:
     """Specification of a prior distribution used in model construction."""
 
     kind: PriorType
-    params: dict[str, float] = field(default_factory=dict)
+    params: dict[str, float | np.ndarray] = field(default_factory=dict)
 
 
 def _make_prior(name: str, spec: PriorSpec, dims: str | tuple[str, ...] | None = None):  # pylint: disable=too-many-return-statements
@@ -269,6 +269,9 @@ def _resolve_prior_spec_for_var(mmm, var: str, media_name: str) -> PriorSpec:
 
     if var == "umbrella" and media_name in cfg.prior_umbrella:
         return cfg.prior_umbrella[media_name]
+
+    if var == "product_media" and media_name in cfg.prior_product_media:
+        return cfg.prior_product_media[media_name]
 
     raise ValueError(
         f"Cannot resolve prior specification for variable '{var}' and media '{media_name}'."
