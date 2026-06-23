@@ -96,30 +96,47 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
                 "prior_intercept must be specified if include_intercept is True"
             )
 
-    # def get_media_with_transforms(
-    #     self, transform_fct: Callable[[str, MediaTransformSpec], bool]
-    # ) -> dict[str, MediaTransformSpec]:
-    #     """List media channels with a specific transform function."""
-    #     media = {}
-    #     for m, spec in self.media_transforms.items():
-    #         if transform_fct(m, spec):
-    #             media[m] = spec
-    #     return media
+    @property
+    def var_names(self) -> list[str]:
+        """List all variable names in the model, including media and control parameters.
 
-    # def get_list_media_with_priors(self) -> dict[str, list[str]]:
-    #     """List media channels with priors for adstock/saturation params."""
-
-    #     x = {}
-    #     for adstock_type in AdstockType.__args__:
-    #         x[f"adstock_{adstock_type}"] = self.get_media_with_transforms(
-    #             lambda m, spec: spec.adstock == adstock_type
-    #         )
-
-    #     for saturation_type in SaturationType.__args__:
-    #         x[f"saturation_{saturation_type}"] = self.get_media_with_transforms(
-    #             lambda m, spec: spec.saturation == saturation_type
-    #         )
-    #     return x
+        Returns
+        -------
+        list[str]
+            List of variable names in the model.
+        """
+        return [
+            "intercept",
+            "beta_media",
+            "beta_control",
+            *[
+                f"adstock_alpha[{m}]"
+                for m, t in self.media_transforms.items()
+                if "alpha" in t.adstock_priors
+            ],
+            *[
+                f"saturation_lam[{m}]"
+                for m, t in self.media_transforms.items()
+                if "lam" in t.saturation_priors
+            ],
+            *[
+                f"saturation_k[{m}]"
+                for m, t in self.media_transforms.items()
+                if "k" in t.saturation_priors
+            ],
+            *[
+                f"saturation_n[{m}]"
+                for m, t in self.media_transforms.items()
+                if "n" in t.saturation_priors
+            ],
+            "beta_season",
+            "sigma",
+            *[
+                f"umbrella[{m}]"
+                for m in self.media_transforms
+                if m in self.prior_umbrella
+            ],
+        ]
 
 
 class MMM:  # pylint: disable=too-many-instance-attributes
