@@ -63,8 +63,9 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
     media_transforms: dict[str, MediaTransformSpec] = field(default_factory=dict)
     random_seed: int = 42
     umbrella_driver: str | None = None
-    prior_umbrella: dict[str, PriorSpec] = field(default_factory=dict)
 
+    prior_umbrella: dict[str, PriorSpec] = field(default_factory=dict)
+    prior_product_media: dict[str, PriorSpec] = field(default_factory=dict)
     prior_intercept: PriorSpec = field(
         default_factory=lambda: PriorSpec("Normal", {"mu": 0.0, "sigma": 2.0})
     )
@@ -138,6 +139,49 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
             ],
         ]
 
+    def var_names(self) -> list[str]:
+        """List all variable names in the model, including media and control parameters.
+
+        Returns
+        -------
+        list[str]
+            List of variable names in the model.
+        """
+        return [
+            "intercept",
+            "beta_media",
+            "beta_control",
+            # "beta_trend",
+            *[
+                f"adstock_alpha[{m}]"
+                for m, t in self.media_transforms.items()
+                if "alpha" in t.adstock_priors
+            ],
+            *[
+                f"saturation_lam[{m}]"
+                for m, t in self.media_transforms.items()
+                if "lam" in t.saturation_priors
+            ],
+            *[
+                f"saturation_k[{m}]"
+                for m, t in self.media_transforms.items()
+                if "k" in t.saturation_priors
+            ],
+            *[
+                f"saturation_n[{m}]"
+                for m, t in self.media_transforms.items()
+                if "n" in t.saturation_priors
+            ],
+            "beta_season",
+            "sigma",
+            *[
+                f"umbrella[{m}]"
+                for m in self.media_transforms
+                if m in self.prior_umbrella
+            ],
+            *[f"product_media[{m}]" for m in self.prior_product_media],
+        ]
+
 
 class MMM:  # pylint: disable=too-many-instance-attributes
     """PyMC-based Bayesian MMM framework using the NumPyro NUTS backend."""
@@ -174,39 +218,51 @@ class MMM:  # pylint: disable=too-many-instance-attributes
         s = self._scales[key]
         return s
 
-    def _apply_umbrella_effect(self, cols):
-        """Apply a shared multiplicative uplift driven by one media channel.
+    def _apply_boosts(self, cols, x_c):
+        """Apply umbrella and product media boosts to media channels.
 
         Parameters
         ----------
-        cols : list
-            List of transformed media columns (one per media channel), where each
-            element is an xarray/pytensor-like 1D object indexed on the date
-            dimension.
+        cols : list[pt.TensorVariable]
+            List of symbolic media columns after adstock and saturation transformations.
+        control_contribution : pt.TensorVariable
+            Symbolic control contribution matrix with shape (n_obs, n_controls).
 
         Returns
         -------
-        list
-            The same list with all non-driver channels multiplied by
-            ``1 + umbrella * driver_channel``. The driver channel itself is left
-            unchanged.
+        list[pt.TensorVariable]
+            List of symbolic media columns after applying boosts.
         """
 
-        tv_idx = self.config.media_names.index(self.config.umbrella_driver)
+        # tv x media interaction
+        tv_hill = -1
+        tv_idx = -1
+        if self.config.umbrella_driver is not None:
+            tv_idx = self.config.media_names.index(self.config.umbrella_driver)
+            tv_hill = cols[tv_idx]
 
-        tv_nat_h = cols[tv_idx]
+        # control x media interaction
+        boost_controls = 0.0
+        for name, pspec in self.config.prior_product_media.items():
+            ctrl_idx = self.config.control_names.index(name)
+            para_product = _make_prior(f"product_media[{name}]", pspec)
+            boost_controls = boost_controls + para_product * x_c.isel(control=ctrl_idx)
 
         for j, m in enumerate(self.config.media_names):
-            if j != tv_idx:
+            boost = boost_controls
+            if tv_idx not in (-1, j):
                 pspec = self.config.prior_umbrella.get(m, None)
                 if pspec is not None:
                     umbrella = _make_prior(f"umbrella[{m}]", pspec)
-                    boost = 1.0 + umbrella * tv_nat_h
-                    cols[j] = cols[j] * boost
+
+                    boost = boost + umbrella * tv_hill
+
+            if boost != 0.0:
+                cols[j] = cols[j] * (1 + boost)
 
         return cols
 
-    def _build_media_contribution(self, x_m):
+    def _build_media_contribution(self, x_m, control_contribution):
         """Transform media channels with adstock operators.
 
         Parameters
@@ -257,8 +313,7 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             self.adstocks[name] = {"function": ad, "params": adstock_params}
             self.saturations[name] = sat
 
-        if self.config.umbrella_driver is not None:
-            cols = self._apply_umbrella_effect(cols)
+        cols = self._apply_boosts(cols, control_contribution)
 
         return ptx.concat(cols, dim="media").transpose("date", "media")
 
@@ -364,19 +419,30 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             x_s = pmd.Data("season_data", self._season, dims=("date", "season"))
             y_o = pmd.Data("y_obs", self._y, dims="date")
 
+            # === CONTROL ===
+            beta_control = _make_prior(
+                "beta_control", self.config.prior_control, dims="control"
+            )
+            control_contribution = pmd.Deterministic(
+                "control_contribution",
+                value=x_c * beta_control,
+                dims=["date", "control"],
+            )
+            mu = control_contribution.sum(dim="control")
+
             # === MEDIA ===
             beta_media = _make_prior(
                 "beta_media", self.config.prior_media, dims="media"
             )
             # stochastic media transform if any media has adstock/saturation params with priors
-            x_m_transformed = self._build_media_contribution(x_m)
+            x_m_transformed = self._build_media_contribution(x_m, x_c)
 
             media_contribution = pm.Deterministic(
                 "media_contribution",
                 var=x_m_transformed * beta_media,  # [None, :],
                 dims=["date", "media"],
             )
-            mu = media_contribution.sum(dim="media")
+            mu = mu + media_contribution.sum(dim="media")
 
             # === INTERCEPT ===
             intercept = (
@@ -388,17 +454,6 @@ class MMM:  # pylint: disable=too-many-instance-attributes
                 "intercept_contribution", var=intercept
             )
             mu = mu + intercept_contribution
-
-            # === CONTROL ===
-            beta_control = _make_prior(
-                "beta_control", self.config.prior_control, dims="control"
-            )
-            control_contribution = pmd.Deterministic(
-                "control_contribution",
-                value=x_c * beta_control,
-                dims=["date", "control"],
-            )
-            mu = mu + control_contribution.sum(dim="control")
 
             # === SEASONALITY ===
             beta_season = _make_prior(
