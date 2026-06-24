@@ -199,6 +199,29 @@ class MMM:  # pylint: disable=too-many-instance-attributes
         self.adstocks = {}
         self.saturations = {}
 
+        self.priors = {}
+
+    def add_prior(self, name: str, prior_spec: PriorSpec):
+        """Add a prior to the model if it doesn't already exist.
+
+        Parameters
+        ----------
+        name : str
+            The name of the prior.
+        prior_spec : PriorSpec
+            The specification of the prior.
+
+        Returns
+        -------
+        pm.Distribution
+            The prior distribution.
+        """
+        if name in self.priors:
+            return self.priors[name]
+
+        self.priors[name] = _make_prior(name, prior_spec)
+        return self.priors[name]
+
     def scale(self, key: str):
         """Get the scaling factor for a given key.
 
@@ -245,7 +268,7 @@ class MMM:  # pylint: disable=too-many-instance-attributes
         boost_controls = 0.0
         for name, pspec in self.config.prior_product_media.items():
             ctrl_idx = self.config.control_names.index(name)
-            para_product = _make_prior(f"product_media[{name}]", pspec)
+            para_product = self.add_prior(f"product_media[{name}]", pspec)
             boost_controls = boost_controls + para_product * x_c.isel(control=ctrl_idx)
 
         for j, m in enumerate(self.config.media_names):
@@ -253,7 +276,7 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             if tv_idx not in (-1, j):
                 pspec = self.config.prior_umbrella.get(m, None)
                 if pspec is not None:
-                    umbrella = _make_prior(f"umbrella[{m}]", pspec)
+                    umbrella = self.add_prior(f"umbrella[{m}]", pspec)
 
                     boost = boost + umbrella * tv_hill
 
@@ -287,7 +310,9 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             # === sample adstock stochastic params and apply adstock ===
             adstock_params: dict = dict(spec.adstock_params)
             for pname, pspec in spec.adstock_priors.items():
-                adstock_params[pname] = _make_prior(f"adstock_{pname}[{name}]", pspec)
+                adstock_params[pname] = self.add_prior(
+                    f"adstock_{pname}[{name}]", pspec
+                )
 
             ad = Adstock.from_spec(
                 kind=spec.adstock,
@@ -300,7 +325,7 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             # === apply saturation ===
             saturation_params: dict = dict(spec.saturation_params)
             for pname, pspec in spec.saturation_priors.items():
-                saturation_params[pname] = _make_prior(
+                saturation_params[pname] = self.add_prior(
                     f"saturation_{pname}[{name}]", pspec
                 )
             sat = Saturation.from_spec(spec.saturation, params=saturation_params)
@@ -429,6 +454,15 @@ class MMM:  # pylint: disable=too-many-instance-attributes
                 dims=["date", "control"],
             )
             mu = control_contribution.sum(dim="control")
+
+            # trend_idx = self.config.control_names.index("trend")
+            # trend_contribution = control_contribution.isel(control=trend_idx)
+            # pspec = self.config.prior_product_media["cospirit"]
+            # mu = (
+            #     mu
+            #     - trend_contribution
+            #     + trend_contribution * self.add_prior(f"product_media[cospirit]", pspec)
+            # )
 
             # === MEDIA ===
             beta_media = _make_prior(
