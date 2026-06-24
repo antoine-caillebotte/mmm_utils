@@ -105,7 +105,9 @@ def extract_response_distribution(
         )
 
     # 2. Vectorize across samples & replace placeholders with sample-major xtensor constants
-    print(replace_dict)
+    for placeholder, constant in replace_dict.items():
+        print(f"Replacing {placeholder} \t with constant {constant}")
+
     response_distribution = vectorize_graph(response_var, replace=replace_dict)
 
     # Final cleanup
