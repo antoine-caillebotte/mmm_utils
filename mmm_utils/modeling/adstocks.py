@@ -4,20 +4,37 @@ It provides a flexible framework for applying adstock effects to media variables
  with support for symbolic parameters in probabilistic programming contexts.
 """
 
-from dataclasses import dataclass, field
-from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Literal
 
+import pytensor.xtensor.math as ptxmath
+from pytensor.xtensor.type import as_xtensor
 
-import numpy as np
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
+
 
 from .utils import (
     ParamLike,
     ArrayLike,
     CheckParameterValue,
 )
+
+from .transform import Transform, validate_params
+
+# disable false positive when call ptxmath functions
+# pylint: disable=too-many-function-args
+# pyright: reportCallIssue=false
+# disable false positive when operators are used with symbolic tensors
+# pyright: reportOperatorIssue=false
+# false positive : ptx.signal.convolve1d
+# pyright: reportPrivateImportUsage=false
+# pyright: reportReturnType=false
+# disable false positive when
+# pyright: reportAttributeAccessIssue=false
+
+# pyright: reportOptionalOperand=false
+
 
 AdstockType = Literal["none", "Geometric", "GeometricDelayed"]
 
@@ -29,7 +46,7 @@ def batched_convolution(
     dim: str,
     kernel_dim: str,
     lags: int | None = None,
-) -> np.ndarray | pt.TensorVariable:
+) -> ArrayLike:
     """Apply a 1D convolution with support for symbolic inputs and kernels.
 
     Parameters
@@ -47,7 +64,7 @@ def batched_convolution(
 
     Returns
     -------
-    np.ndarray | pt.TensorVariable
+    ArrayLike
         Convolved signal with the same length as the input series.
 
     Raises
@@ -55,10 +72,10 @@ def batched_convolution(
     ValueError
         If ``lags`` is not provided while ``w`` is symbolic.
     """
-    x = ptx.as_xtensor(x)
-    w = ptx.as_xtensor(w)
+    x = as_xtensor(x)
+    w = as_xtensor(w)
 
-    zeros = ptx.as_xtensor(pt.zeros(lags - 1, dtype=x.dtype), dims=(dim,))
+    zeros = as_xtensor(pt.zeros(lags - 1, dtype=x.dtype), dims=(dim,))
     padded_x = ptx.concat([zeros, x], dim=dim)
     return ptx.signal.convolve1d(padded_x, w, dims=(dim, kernel_dim), mode="valid")
 
@@ -84,11 +101,11 @@ def _check_alpha(alpha: ParamLike) -> ParamLike:
     ValueError
         If a numeric alpha is outside [0, 1].
     """
-    alpha_tensor = ptx.as_xtensor(alpha).values
+    alpha_tensor = as_xtensor(alpha).values
     alpha_checked = _alpha_check_op(
         alpha_tensor, (alpha_tensor >= 0) & (alpha_tensor <= 1).all()
     )
-    return ptx.as_xtensor(alpha_checked)
+    return as_xtensor(alpha_checked)
 
 
 _theta_check_op = CheckParameterValue(msg="0 <= theta < l_max")
@@ -112,18 +129,18 @@ def _check_theta(theta: ParamLike, l_max: int) -> ParamLike:
     ValueError
         If a numeric theta is outside [0, l_max).
     """
-    theta_tensor = ptx.as_xtensor(theta).values
+    theta_tensor = as_xtensor(theta).values
     theta_checked = _theta_check_op(
         theta_tensor, (theta_tensor >= 0) & (theta_tensor < l_max).all()
     )
-    return ptx.as_xtensor(theta_checked)
+    return as_xtensor(theta_checked)
 
 
 # ------------------------------------------------------------------
 # Abstract adstock class
 # ------------------------------------------------------------------
 @dataclass
-class Adstock(ABC):
+class Adstock(Transform):
     """Abstract base class for adstock transformations.
 
     Parameters
@@ -138,10 +155,9 @@ class Adstock(ABC):
         Parameters that must be provided when calling the transform.
     """
 
-    dim: str
+    dim: str = "to_define"
     l_max: int = 12
     normalize: bool = False
-    mandatory_params: list[str] = field(default_factory=list)
 
     def __post_init__(self):
         """Initialize lag index and validate lag configuration."""
@@ -149,44 +165,14 @@ class Adstock(ABC):
             raise ValueError("l_max must be a positive integer.")
 
         self.kernel_dim = f"{self.dim}_kernel"
-        self.lags_xtensor = ptx.as_xtensor(
+        self.lags_xtensor = as_xtensor(
             pt.arange(self.l_max, dtype="float64"), dims=(self.kernel_dim,)
         )
 
-    def _check_params(self, params: dict[str, ParamLike]):
-        """Ensure that all mandatory parameters are present.
-
-        Parameters
-        ----------
-        params : dict[str, ParamLike]
-            Parameters provided to the adstock call.
-        """
-        for param in self.mandatory_params:
-            if param not in params:
-                raise ValueError(f"Missing mandatory parameter: {param}")
-
-    @abstractmethod
-    def __call__(
-        self, x: ArrayLike, params: dict[str, ParamLike], **kwargs
-    ) -> np.ndarray | pt.TensorVariable:
-        """Apply the adstock transformation.
-
-        Parameters
-        ----------
-        x : ArrayLike
-            Input time series.
-        params : dict[str, ParamLike]
-            Adstock parameters.
-
-        Returns
-        -------
-        np.ndarray | pt.TensorVariable
-            Transformed series.
-        """
-        raise NotImplementedError
-
     @classmethod
-    def from_spec(cls, kind, dim, l_max, normalize) -> "Adstock":
+    def from_spec(  # pylint: disable=too-many-arguments, too-many-positional-arguments
+        cls, kind, dim, l_max, normalize, params: dict[str, ParamLike]
+    ) -> "Adstock":
         """Create a concrete adstock implementation from a specification.
 
         Parameters
@@ -199,6 +185,9 @@ class Adstock(ABC):
             Maximum lag.
         normalize : bool
             Whether to normalize kernel weights.
+        params : dict[str, ParamLike]
+            Parameters to initialize the adstock transformer.
+
 
         Returns
         -------
@@ -216,6 +205,7 @@ class Adstock(ABC):
                 l_max=l_max,
                 normalize=normalize,
                 mandatory_params=["alpha"],
+                params=params,
             )
 
         if kind == "GeometricDelayed":
@@ -224,6 +214,7 @@ class Adstock(ABC):
                 l_max=l_max,
                 normalize=normalize,
                 mandatory_params=["alpha", "theta"],
+                params=params,
             )
 
         raise ValueError(
@@ -237,28 +228,22 @@ class Adstock(ABC):
 class GeometricAdstock(Adstock):
     """Geometric adstock with exponentially decaying lag weights."""
 
-    def __call__(
-        self, x: ArrayLike, params: dict[str, ParamLike], **kwargs
-    ) -> np.ndarray | pt.TensorVariable:
+    @validate_params
+    def __call__(self, x: ArrayLike, **kwargs) -> ArrayLike:
         """Transform a series with geometric adstock.
 
         Parameters
         ----------
         x : ArrayLike
             Input time series.
-        params : dict[str, ParamLike]
-            Must include ``alpha``.
 
         Returns
         -------
-        np.ndarray | pt.TensorVariable
+        ArrayLike
             Adstocked series.
         """
-
-        self._check_params(params)
-
-        alpha = _check_alpha(params["alpha"])
-        w = ptx.math.power(alpha, self.lags_xtensor)  # pylint: disable=E1121
+        alpha = _check_alpha(self.params["alpha"])
+        w = ptxmath.power(alpha, self.lags_xtensor)  # pylint: disable=E1121
         if self.normalize:
             w = w / w.sum(dim=self.kernel_dim)
 
@@ -277,31 +262,25 @@ class GeometricAdstock(Adstock):
 class GeometricDelayedAdstock(Adstock):
     """Delayed geometric adstock with bell-shaped lag emphasis."""
 
-    def __call__(
-        self, x: ArrayLike, params: dict[str, ParamLike], **kwargs
-    ) -> np.ndarray | pt.TensorVariable:
+    @validate_params
+    def __call__(self, x: ArrayLike, **kwargs) -> ArrayLike:
         """Transform a series with delayed geometric adstock.
 
         Parameters
         ----------
         x : ArrayLike
             Input time series.
-        params : dict[str, ParamLike]
-            Must include ``alpha`` and ``theta``.
 
         Returns
         -------
-        np.ndarray | pt.TensorVariable
+        ArrayLike
             Adstocked series.
         """
+        alpha = _check_alpha(self.params["alpha"])
+        theta = _check_theta(self.params["theta"], self.l_max)
+        x = as_xtensor(x)
 
-        self._check_params(params)
-
-        alpha = _check_alpha(params["alpha"])
-        theta = _check_theta(params["theta"], self.l_max)
-        x = ptx.as_xtensor(x)
-
-        w = ptx.math.power(alpha, (self.lags_xtensor - theta) ** 2)  # pylint: disable=E1121
+        w = ptxmath.power(alpha, (self.lags_xtensor - theta) ** 2)  # pylint: disable=E1121
         if self.normalize:
             w = w / w.sum(dim=self.kernel_dim)
 

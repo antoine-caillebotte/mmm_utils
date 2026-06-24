@@ -66,6 +66,7 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
 
     prior_umbrella: dict[str, PriorSpec] = field(default_factory=dict)
     prior_product_media: dict[str, PriorSpec] = field(default_factory=dict)
+
     prior_intercept: PriorSpec = field(
         default_factory=lambda: PriorSpec("Normal", {"mu": 0.0, "sigma": 2.0})
     )
@@ -302,8 +303,9 @@ class MMM:  # pylint: disable=too-many-instance-attributes
                 dim="date",
                 l_max=spec.adstock_params.get("l_max"),
                 normalize=spec.adstock_params.get("normalize"),
+                params=adstock_params,
             )
-            col = ad(col, params=adstock_params)
+            col = ad(col)
 
             # === apply saturation ===
             saturation_params: dict = dict(spec.saturation_params)
@@ -318,7 +320,7 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             col = col.expand_dims(dim="media")
             cols.append(col)
 
-            self.adstocks[name] = {"function": ad, "params": adstock_params}
+            self.adstocks[name] = ad
             self.saturations[name] = sat
 
         cols = self._apply_boosts(cols, control_contribution)

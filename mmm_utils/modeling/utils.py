@@ -1,25 +1,49 @@
 """Utility functions for modeling in MMM."""
 
 import numpy as np
-import pytensor.tensor as pt
+from pytensor.gradient import DisconnectedType
 from pytensor.graph.basic import Variable
+from pytensor.xtensor.type import XTensorConstant, XTensorType
 from pytensor.raise_op import CheckAndRaise
 from xarray import DataArray
 
-type ArrayLike = np.ndarray | DataArray | list[float] | tuple[float, ...]
-type ParamLike = ArrayLike | pt.TensorVariable | float
+type ArrayLike = (
+    np.ndarray
+    | DataArray
+    # | list[float]
+    # | tuple[float, ...]
+    | Variable
+    | XTensorConstant[XTensorType]
+)
+type ParamLike = (
+    ArrayLike
+    # | TensorVariable
+    | Variable
+    | XTensorConstant[XTensorType]
+)
 
 
 class ParameterValueError(ValueError):
-    """Exception for invalid parameters values"""
+    """Exception raised when a parameter value is invalid.
+
+    Notes
+    -----
+    This exception is used by :class:`CheckParameterValue`.
+    """
 
 
 class CheckParameterValue(CheckAndRaise):
-    """Implements a parameter value check in graph.
+    """Implement a parameter-value check in a PyTensor graph.
 
+    Parameters
+    ----------
+    msg : str, default=""
+        Message attached to the raised exception when the check fails.
 
-
-    Raises `ParameterValueError` if the check is not True.
+    Raises
+    ------
+    ParameterValueError
+        Raised when the provided check condition is not ``True``.
     """
 
     __props__ = ("msg", "exc_type")
@@ -28,30 +52,52 @@ class CheckParameterValue(CheckAndRaise):
         super().__init__(ParameterValueError, msg)
 
     def __str__(self):
-        """Return a string representation of the object."""
-        return f"Check{{{self.msg}}}"
-
-    def R_op(
-        self, inputs: list[Variable], eval_points: Variable | list[Variable]
-    ) -> list[Variable]:
-        """Return the R-operator for the check, which is zero since
-        the check does not depend on the inputs.
-
-        Parameters
-        ----------
-        inputs : list[Variable]
-            List of input variables to the check operation.
-
-        eval_points : Variable | list[Variable]
-            Points at which to evaluate the R-operator.
+        """Return the string representation of the check node.
 
         Returns
         -------
-        list[Variable]
-            R-operator evaluated at the given points.
-
+        str
+            String representation containing the configured message.
         """
-        return [pt.zeros_like(inputs[0])]
+        return f"Check{{{self.msg}}}"
+
+    def grad(self, inputs, output_grads):
+        """Return reverse-mode gradients for this operation.
+
+        Parameters
+        ----------
+        inputs : list
+            Input symbolic variables. The first input is the value input,
+            and remaining inputs correspond to check conditions.
+        output_grads : list
+            Upstream gradients for the outputs.
+
+        Returns
+        -------
+        list
+            Gradient for the first input and disconnected gradients for
+            all check-condition inputs.
+        """
+        return [output_grads[0], *[DisconnectedType()() for _ in inputs[1:]]]
+
+    def pushforward(self, inputs, outputs, tangents):
+        """Return forward-mode tangents for this operation.
+
+        Parameters
+        ----------
+        inputs : list
+            Input symbolic variables.
+        outputs : list
+            Output symbolic variables.
+        tangents : list
+            Input tangents.
+
+        Returns
+        -------
+        list
+            Forward tangent propagated from the first input.
+        """
+        return [tangents[0]]
 
 
 def max_abs_scaler(x: np.ndarray) -> np.ndarray:
@@ -72,57 +118,3 @@ def max_abs_scaler(x: np.ndarray) -> np.ndarray:
         scale = np.array([scale])
     scale[scale == 0] = 1.0
     return x / scale, scale
-
-
-def _to_numpy_1d(x: ArrayLike | float) -> np.ndarray:
-    """Convert an input container to a flattened NumPy array.
-
-    Parameters
-    ----------
-    x : ArrayLike | float
-        Input value that can be a scalar, list/tuple, NumPy array, or xarray DataArray.
-
-    Returns
-    -------
-    np.ndarray
-        One-dimensional NumPy representation of the input.
-    """
-    if isinstance(x, DataArray):
-        array = np.asarray(x.to_numpy(), dtype=np.float64)
-    else:
-        array = np.asarray(x, dtype=np.float64)
-    return np.ravel(array)
-
-
-def _is_symbolic(x: object) -> bool:
-    """Check whether an object is a PyTensor symbolic variable.
-
-    Parameters
-    ----------
-    x : object
-        Object to inspect.
-
-    Returns
-    -------
-    bool
-        True if the object is symbolic, False otherwise.
-    """
-    return isinstance(x, Variable)
-
-
-def _as_scalar_tensor(x: ParamLike):
-    """Extract a scalar value from numeric or symbolic inputs.
-
-    Parameters
-    ----------
-    x : ParamLike
-        Numeric or symbolic parameter value.
-
-    Returns
-    -------
-    pt.TensorVariable | float
-        Scalar symbolic tensor for symbolic inputs, Python float otherwise.
-    """
-    if _is_symbolic(x):
-        return pt.as_tensor_variable(x).reshape((-1,))[0]
-    return float(_to_numpy_1d(x)[0])

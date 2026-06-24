@@ -5,12 +5,9 @@ saturation transformation. Implementations accept numeric or symbolic
 parameters so they can be used directly inside PyMC/PyTensor computation graphs.
 """
 
-from dataclasses import dataclass, field
-from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Literal
 
-import numpy as np
-import pytensor.tensor as pt
 import pytensor.xtensor.math as ptxmath
 from pytensor.xtensor.type import as_xtensor
 
@@ -23,6 +20,16 @@ from .utils import (
     ArrayLike,
     CheckParameterValue,
 )
+
+from .transform import Transform, validate_params
+
+# disable false positive when call ptxmath functions
+# pylint: disable=too-many-function-args
+# pyright: reportCallIssue=false
+# disable false positive when operators are used with symbolic tensors
+# pyright: reportOperatorIssue=false
+# disable false positive when
+# pyright: reportAttributeAccessIssue=false
 
 SaturationType = Literal["None", "Logistic", "Hill"]
 
@@ -48,7 +55,7 @@ def _check_lam(lam: ParamLike) -> ParamLike:
     CheckParameterValue
         If ``lam`` is not positive.
     """
-    lam_tensor = as_xtensor(lam)
+    lam_tensor = as_xtensor(lam).values
     lam_checked = _lam_check_op(lam_tensor, lam_tensor > 0)
     return as_xtensor(lam_checked)
 
@@ -59,7 +66,7 @@ def _check_lam(lam: ParamLike) -> ParamLike:
 
 
 @dataclass
-class Saturation(ABC):
+class Saturation(Transform):
     """Abstract base class for saturation transformations.
 
     Parameters
@@ -67,42 +74,6 @@ class Saturation(ABC):
     mandatory_params : list[str], optional
         Parameters that must be provided when calling the transform.
     """
-
-    mandatory_params: list[str] = field(default_factory=list)
-    params: dict[str, ParamLike] = field(default_factory=dict)
-
-    def _check_params(self, params: dict[str, ParamLike]) -> None:
-        """Ensure that all mandatory parameters are present.
-
-        Parameters
-        ----------
-        params : dict[str, ParamLike]
-            Parameters provided to the saturation call.
-
-        Raises
-        ------
-        ValueError
-            If a mandatory parameter is missing.
-        """
-        for param in self.mandatory_params:
-            if param not in params:
-                raise ValueError(f"Missing mandatory parameter: {param}")
-
-    @abstractmethod
-    def __call__(self, x: ArrayLike, **kwargs) -> np.ndarray | pt.TensorVariable:
-        """Apply the saturation transformation.
-
-        Parameters
-        ----------
-        x : ArrayLike
-            Input media signal.
-
-        Returns
-        -------
-        np.ndarray | pt.TensorVariable
-            Saturated signal.
-        """
-        raise NotImplementedError
 
     @classmethod
     def from_spec(
@@ -183,7 +154,7 @@ class Saturation(ABC):
 class IdentitySaturation(Saturation):
     """Pass-through saturation that leaves the signal unchanged."""
 
-    def __call__(self, x: ArrayLike, **kwargs) -> np.ndarray | pt.TensorVariable:
+    def __call__(self, x: ArrayLike, **kwargs) -> ArrayLike:
         """Return the input unchanged.
 
         Parameters
@@ -193,7 +164,7 @@ class IdentitySaturation(Saturation):
 
         Returns
         -------
-        np.ndarray | pt.TensorVariable
+        ArrayLike
             Input unchanged, as NumPy array or pytensor tensor.
         """
         return as_xtensor(x)
@@ -207,7 +178,8 @@ class IdentitySaturation(Saturation):
 class LogisticSaturation(Saturation):
     """Logistic saturation with a single rate parameter ``lam``."""
 
-    def __call__(self, x: ArrayLike, **kwargs) -> np.ndarray | pt.TensorVariable:
+    @validate_params
+    def __call__(self, x: ArrayLike, **kwargs) -> ArrayLike:
         """Apply logistic saturation: ``(1 - exp(-lam*x)) / (1 + exp(-lam*x))``.
 
         Parameters
@@ -217,13 +189,12 @@ class LogisticSaturation(Saturation):
 
         Returns
         -------
-        np.ndarray | pt.TensorVariable
+        ArrayLike
             Saturated signal in (0, 1).
         """
-        self._check_params(self.params)
 
         x = as_xtensor(x)
-        lam = as_xtensor(self.params["lam"])
+        lam = _check_lam(self.params["lam"])
         exp_lam_x = ptxmath.exp(-lam * x)  # pylint: disable= too-many-function-args
 
         return (1 - exp_lam_x) / (1 + exp_lam_x)
@@ -237,7 +208,8 @@ class LogisticSaturation(Saturation):
 class HillSaturation(Saturation):
     """Hill saturation with two parameters: ``n`` (shape) and ``k`` (half-saturation point)."""
 
-    def __call__(self, x: ArrayLike, **kwargs) -> np.ndarray | pt.TensorVariable:
+    @validate_params
+    def __call__(self, x: ArrayLike, **kwargs) -> ArrayLike:
         """Apply Hill saturation: ``(x^n) / (k^n + x^n)``.
 
         Parameters
@@ -247,10 +219,9 @@ class HillSaturation(Saturation):
 
         Returns
         -------
-        np.ndarray | pt.TensorVariable
+        ArrayLike
             Saturated signal in (0, 1).
         """
-        self._check_params(self.params)
 
         x = as_xtensor(x)
         n = as_xtensor(self.params["n"])
