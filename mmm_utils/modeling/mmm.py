@@ -97,48 +97,6 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
                 "prior_intercept must be specified if include_intercept is True"
             )
 
-    @property
-    def var_names(self) -> list[str]:
-        """List all variable names in the model, including media and control parameters.
-
-        Returns
-        -------
-        list[str]
-            List of variable names in the model.
-        """
-        return [
-            "intercept",
-            "beta_media",
-            "beta_control",
-            *[
-                f"adstock_alpha[{m}]"
-                for m, t in self.media_transforms.items()
-                if "alpha" in t.adstock_priors
-            ],
-            *[
-                f"saturation_lam[{m}]"
-                for m, t in self.media_transforms.items()
-                if "lam" in t.saturation_priors
-            ],
-            *[
-                f"saturation_k[{m}]"
-                for m, t in self.media_transforms.items()
-                if "k" in t.saturation_priors
-            ],
-            *[
-                f"saturation_n[{m}]"
-                for m, t in self.media_transforms.items()
-                if "n" in t.saturation_priors
-            ],
-            "beta_season",
-            "sigma",
-            *[
-                f"umbrella[{m}]"
-                for m in self.media_transforms
-                if m in self.prior_umbrella
-            ],
-        ]
-
     def var_names(self) -> list[str]:
         """List all variable names in the model, including media and control parameters.
 
@@ -268,7 +226,7 @@ class MMM:  # pylint: disable=too-many-instance-attributes
         boost_controls = 0.0
         for name, pspec in self.config.prior_product_media.items():
             ctrl_idx = self.config.control_names.index(name)
-            para_product = self.add_prior(f"product_media[{name}]", pspec)
+            para_product = _make_prior(f"product_media[{name}]", pspec)
             boost_controls = boost_controls + para_product * x_c.isel(control=ctrl_idx)
 
         for j, m in enumerate(self.config.media_names):
@@ -276,7 +234,7 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             if tv_idx not in (-1, j):
                 pspec = self.config.prior_umbrella.get(m, None)
                 if pspec is not None:
-                    umbrella = self.add_prior(f"umbrella[{m}]", pspec)
+                    umbrella = _make_prior(f"umbrella[{m}]", pspec)
 
                     boost = boost + umbrella * tv_hill
 
