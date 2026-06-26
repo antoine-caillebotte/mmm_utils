@@ -523,7 +523,7 @@ class Interaction:
         if self.controls:
             coords["controls"] = sorted(self.controls)
 
-        all_names = set(self.formulas.keys()) | self.media
+        all_names = list(self.formulas.keys()) + self.media
         for term in sorted(self.get_all_interaction_terms()):
             seen_lhs: set[str] = set()
             term_coords: list[str] = []

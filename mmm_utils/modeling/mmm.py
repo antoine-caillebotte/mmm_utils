@@ -256,7 +256,7 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             # Register all data nodes as pm.Data so they can be swapped via
             # pymc.do() for counterfactual / optimisation scenarios.
             x_m, x_c, x_s, y_o = self.data.build_pm_data(self.model)
-            self.config.beta_priors.build_pymc_priors(coords)
+            self.config.beta_priors.build_pymc_priors()
 
             # === MEDIA TRANSFORMATION ===
             # Stochastic adstock/saturation params are created as vectorized

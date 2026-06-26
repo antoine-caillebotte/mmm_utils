@@ -6,7 +6,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+import numpy as np
 import pytensor.xtensor as ptx
+from pytensor.xtensor.type import as_xtensor
 
 from .formulae import Interaction
 from ..prior import PriorSpec, _make_prior
@@ -274,32 +276,53 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
         media_names = self.interaction.media
         control_names = self.interaction.controls
 
-        cols = []
-        for j, m in enumerate(media_names):
-            formula = self.interaction.parse_formula(m)
-            beta_m = beta_media.isel(media=j)  # 0-d: "media" dim removed
+        # O(1) index lookups — avoid repeated list.index() calls in the loop
+        media_idx = {m: i for i, m in enumerate(media_names)}
+        ctrl_idx = {c: i for i, c in enumerate(control_names)}
 
-            boost = float(formula.has_baseline)  # 1.0 or 0.0
-            for term in formula.terms:
-                # "beta_interaction_{term}" is a vector; slice the scalar for this channel
-                param_vector = self.pymc_priors[f"beta_interaction_{term}"]
-                idx = self.interaction.get_lhs_index(m, term)
-                param_value = param_vector.isel(**{f"interaction_{term}": idx})
+        # Baseline per channel as a constant xtensor vector
+        boost = as_xtensor(
+            np.array(
+                [
+                    float(self.interaction.parse_formula(m).has_baseline)
+                    for m in media_names
+                ]
+            ),
+            dims=("media",),
+        )
 
-                if term in self.interaction.media:
-                    x_term = x_m.isel(media=media_names.index(term))
-                else:
-                    x_term = x_c.isel(control=control_names.index(term))
+        # Iterate over distinct interaction terms, not over media channels.
+        # For N media with T terms each, the original loop ran N×T isel-scalar ops.
+        # Here we run T gather ops, one per distinct term regardless of N.
+        for term in sorted(self.interaction.get_all_interaction_terms()):
+            param_vector = self.pymc_priors[f"beta_interaction_{term}"]
 
-                boost = boost + param_value * x_term
+            if term in self.interaction.media:
+                x_term = x_m.isel(media=media_idx[term])
+            else:
+                x_term = x_c.isel(control=ctrl_idx[term])
 
-            col = (beta_m * boost).expand_dims(dim="media")
-            cols.append(col)
+            # Gather indices are fully static (known at graph-build time):
+            # gather_idx[j] = index in param_vector for media_names[j] (0 if unused)
+            # valid_mask[j] = 1.0 if media_names[j] uses this term, else 0.0
+            valid_mask = np.zeros(len(media_names), dtype=np.float64)
+            gather_idx = np.zeros(len(media_names), dtype=np.intp)
+            for j, m in enumerate(media_names):
+                if term in self.interaction.parse_formula(m).terms:
+                    valid_mask[j] = 1.0
+                    gather_idx[j] = self.interaction.get_lhs_index(m, term)
 
-        beta_adjusted_media = ptx.concat(cols, dim="media").transpose("date", "media")
+            # One gather node for all media instead of N scalar isel nodes
+            beta_per_media = as_xtensor(
+                param_vector.values[gather_idx] * valid_mask,
+                dims=("media",),
+            )
+
+            # XTensor broadcasting: ("date",) × ("media",) → ("date", "media")
+            boost = boost + x_term * beta_per_media
 
         return {
-            "media": beta_adjusted_media,
+            "media": (beta_media * boost).transpose("date", "media"),
             "season": beta_season,
             "control": beta_control,
         }

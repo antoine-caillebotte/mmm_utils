@@ -391,17 +391,24 @@ def plot_seasonality(mmm, ax=None):
         _, ax = plt.subplots(figsize=(10, 4))
 
     target_scale = mmm.data.scale("y")
+    posterior_intercept = (
+        mmm.idata.posterior.controls["intercept"] * target_scale
+        if "intercept" in mmm.idata.posterior.controls
+        else 0.0
+    )
     posterior_season = (
         mmm.idata.posterior.yearly_seasonality_contribution
-        + mmm.idata.posterior.intercept_contribution
     ) * target_scale
 
     date = mmm.idata.posterior_predictive.date
     posterior_season_mean = posterior_season.mean(dim=["chain", "draw"])
+    posterior_intercept_mean = posterior_intercept.mean(dim=["chain", "draw"])
 
     data_logger.record(
         date=np.asarray(date.values),
-        seasonality_intercept=np.asarray(posterior_season_mean.values),
+        seasonality_intercept=np.asarray(
+            posterior_season_mean.values + posterior_intercept_mean.values
+        ),
     )
 
     sns.lineplot(
