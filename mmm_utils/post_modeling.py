@@ -450,7 +450,7 @@ def plot_seasonality(mmm, ax=None):
 
     target_scale = mmm.data.scale("y")
 
-    posterior_intercept = 0.0
+    posterior_intercept = np.array([0.0])
     if "intercept" in mmm.idata.posterior.control_contribution.control:
         posterior_intercept = (
             mmm.idata.posterior.control_contribution.sel(control="intercept")
