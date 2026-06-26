@@ -13,15 +13,13 @@ import arviz as az
 import pymc as pm
 import pymc.dims as pmd
 import pytensor.xtensor as ptx
-from pytensor.xtensor.type import as_xtensor
 
 
 from .utils import ArrayLike, max_abs_scaler
 from .seasonality import fourier_features
 from .prior import _make_prior
-from .adstocks import Adstock
-from .saturation import Saturation
-from .model_definition.mmm_config import MMMConfig, MediaTransformSpec
+from .transform_handler import TransformHandler
+from .model_definition.mmm_config import MMMConfig
 
 
 @dataclass
@@ -164,16 +162,10 @@ class MMM:  # pylint: disable=too-many-instance-attributes
     def _apply_media_transforms(self, x_m):
         """Transform media channels with adstock and saturation operators.
 
-        Iterates over each channel defined in ``config.media_names``.  For
-        each channel a dedicated :class:`~.Adstock` and :class:`~.Saturation`
-        instance is created from its :class:`~.MediaTransformSpec`.  Stochastic
-        parameters (those listed in ``adstock_priors`` / ``saturation_priors``)
-        are created as **scalar** PyMC variables named
-        ``"adstock_{param}[{channel}]"`` / ``"saturation_{param}[{channel}]"``,
-        one per channel per parameter.  The transformed columns are concatenated
-        along the ``"media"`` dimension before being returned.
-
-        Must be called inside an active ``pm.Model`` context.
+        Delegates to :class:`~.transform.TransformHandler` which implements
+        a vectorized fast path (uniform specs) and a per-channel fallback
+        (heterogeneous specs).  Must be called inside an active ``pm.Model``
+        context.
 
         Parameters
         ----------
@@ -185,45 +177,14 @@ class MMM:  # pylint: disable=too-many-instance-attributes
         XTensorVariable
             Symbolically transformed media matrix, dims ``("date", "media")``.
         """
-        cols = []
-        x_m = as_xtensor(x_m.values, dims=("date", "media"))
-
-        for j, name in enumerate(self.config.media_names):
-            spec = self.config.media_transforms.get(name, MediaTransformSpec())
-            col = x_m.isel(media=j)
-
-            # === adstock: merge fixed params with stochastic params ===
-            adstock_params: dict = dict(spec.adstock_params)
-            for pname, pspec in spec.adstock_priors.items():
-                adstock_params[pname] = _make_prior(f"adstock_{pname}[{name}]", pspec)
-
-            ad = Adstock.from_spec(
-                kind=spec.adstock,
-                dim="date",
-                l_max=spec.adstock_params.get("l_max"),
-                normalize=spec.adstock_params.get("normalize"),
-                params=adstock_params,
-            )
-            col = ad(col)
-
-            # === saturation: merge fixed params with stochastic params ===
-            saturation_params: dict = dict(spec.saturation_params)
-            for pname, pspec in spec.saturation_priors.items():
-                saturation_params[pname] = _make_prior(
-                    f"saturation_{pname}[{name}]", pspec
-                )
-
-            sat = Saturation.from_spec(kind=spec.saturation, params=saturation_params)
-            col = sat(col)
-
-            # === collect transformed column ===
-            col = col.expand_dims(dim="media")
-            cols.append(col)
-
-            self.adstocks[name] = ad
-            self.saturations[name] = sat
-
-        return ptx.concat(cols, dim="media").transpose("date", "media")
+        handler = TransformHandler(
+            media_names=self.config.media_names,
+            media_transforms=self.config.media_transforms,
+        )
+        x_transformed = handler.apply(x_m)
+        self.adstocks = handler.adstocks
+        self.saturations = handler.saturations
+        return x_transformed
 
     def build(
         self,
@@ -262,16 +223,24 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             # Stochastic adstock/saturation params are created as vectorized
             # PyMC variables inside _apply_media_transforms using transform_coords.
             x_m_transformed = self._apply_media_transforms(x_m)
+            x_m_transformed = pmd.Deterministic(
+                "media_transformed", value=x_m_transformed, dims=("date", "media")
+            )
 
             # === BETA (with interaction adjustments) ===
             beta_adjusted = self.config.beta_priors.get_beta_adjusted(
                 x_m_transformed, x_c
             )
+            beta_media_adjusted = pmd.Deterministic(
+                "beta_media_adjusted",
+                value=beta_adjusted["media"],
+                dims=("date", "media"),
+            )
 
             # === MEDIA ===
             media_contribution = pmd.Deterministic(
                 "media_contribution",
-                value=x_m_transformed * beta_adjusted["media"],
+                value=x_m_transformed * beta_media_adjusted,
                 dims=["date", "media"],
             )
             total_media_contribution = pmd.Deterministic(

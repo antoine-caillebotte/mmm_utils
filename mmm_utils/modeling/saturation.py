@@ -55,9 +55,9 @@ def _check_lam(lam: ParamLike) -> ParamLike:
     CheckParameterValue
         If ``lam`` is not positive.
     """
-    lam_tensor = as_xtensor(lam).values
-    lam_checked = _lam_check_op(lam_tensor, lam_tensor > 0)
-    return as_xtensor(lam_checked)
+    lam_xt = as_xtensor(lam)
+    lam_checked = _lam_check_op(lam_xt.values, (lam_xt.values > 0).all())
+    return as_xtensor(lam_checked, dims=lam_xt.type.dims)
 
 
 # ------------------------------------------------------------------

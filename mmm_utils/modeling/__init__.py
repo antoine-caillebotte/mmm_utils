@@ -8,3 +8,4 @@ from .mmm import MMM
 from .model_definition.formulae import Interaction, InteractionFormula
 from .model_definition.beta_priors import BetaPriors
 from .model_definition.mmm_config import MMMConfig, MediaTransformSpec
+from .transform_handler import TransformHandler
