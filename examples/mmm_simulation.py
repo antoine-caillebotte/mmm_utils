@@ -11,6 +11,8 @@ from mmm_utils.modeling.utils import max_abs_scaler
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+# pylint: skip-file
+
 
 def adstock_np(x, d):
     out = np.zeros_like(x, dtype=float)
@@ -164,7 +166,6 @@ def make_synthetic_data(n: int = 180, seed: int = 123):
 
 
 def plot_example(df, media_names, control_names):
-
     fig, axes = plt.subplots(4, 1, figsize=(10, 8), sharex=True)
 
     sns.lineplot(data=df, x="date", y="y", ax=axes[0], color="black", label="target")
@@ -191,4 +192,5 @@ if __name__ == "__main__":
 
     plot_example(df, media_names, control_names)
 
-    df.to_csv("synthetic_mmm_data.csv", index=False)
+    df.drop(columns=["trend", "season"], inplace=True)
+    df.to_csv("synthetic_mm_data.csv", index=False, sep=";", decimal=".")
