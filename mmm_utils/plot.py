@@ -206,7 +206,7 @@ def plot_cross_correlation(data, media, controls, target: str = "y", maxlags: in
     return fig, axes
 
 
-def corr_plot(data, media, controls):
+def corr_plot(data, media, controls, target="y"):
     """Build a styled correlation matrix for media, controls, and target ``y``.
 
     Parameters
@@ -217,6 +217,8 @@ def corr_plot(data, media, controls):
         Media channel names to include.
     controls : list[str]
         Control variable names to include.
+    target : str, optional
+        Target variable name, by default "y".
 
     Returns
     -------
@@ -224,7 +226,7 @@ def corr_plot(data, media, controls):
         Styled correlation matrix with formatting and a color gradient.
     """
 
-    dataframe_styled = data[media + controls + ["y"]].corr().style
+    dataframe_styled = data[media + controls + [target]].corr().style
 
     fig = (
         dataframe_styled.format(precision=2)

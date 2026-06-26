@@ -105,7 +105,9 @@ def extract_response_distribution(
         )
 
     # 2. Vectorize across samples & replace placeholders with sample-major xtensor constants
-    print(replace_dict)
+    for placeholder, constant in replace_dict.items():
+        print(f"Replacing {placeholder} \t with constant {constant}")
+
     response_distribution = vectorize_graph(response_var, replace=replace_dict)
 
     # Final cleanup
@@ -121,7 +123,9 @@ def extract_response_distribution(
     return response_distribution
 
 
-def replace_variable_by_optimization_variable(pymc_model, name, xr_data: DataArray):
+def replace_variable_by_optimization_variable(
+    pymc_model, name, xr_data: DataArray, extra_replacements: dict | None = None
+):
     """Replace a variable in the PyMC model graph with an optimization variable.
 
     Parameters
@@ -133,6 +137,8 @@ def replace_variable_by_optimization_variable(pymc_model, name, xr_data: DataArr
     xr_data : xarray.DataArray
         The xarray DataArray containing the data for the variable,
         used to determine the shape and dimensions of the optimization variable.
+    extra_replacements : dict, optional
+        Additional replacements to apply to the model graph, by default None.
     Returns
     -------
     tuple
@@ -151,14 +157,22 @@ def replace_variable_by_optimization_variable(pymc_model, name, xr_data: DataArr
         name=name,
     )
 
+    replacements = {name: input_variable}
+    if extra_replacements:
+        replacements.update(extra_replacements)
+
     return input_flat, pm.do(
         pymc_model,
-        {name: input_variable},
+        replacements,
     )
 
 
 def replace_variable_by_repeated_optimization_variable(
-    pymc_model, name, xr_data: DataArray, n_repeat
+    pymc_model,
+    name,
+    xr_data: DataArray,
+    n_repeat,
+    extra_replacements: dict | None = None,
 ):
     """Replace a variable in the PyMC model graph with a repeated optimization variable.
 
@@ -173,6 +187,8 @@ def replace_variable_by_repeated_optimization_variable(
         used to determine the shape and dimensions of the optimization variable.
     n_repeat : int
         The number of times to repeat the optimization variable along the new dimension.
+    extra_replacements : dict, optional
+        Additional replacements to apply to the model graph, by default None.
 
     Returns
     -------
@@ -211,9 +227,43 @@ def replace_variable_by_repeated_optimization_variable(
         name=f"{name}_repeated",
     )
 
+    replacements = {name: repeated_xtensor}
+    if extra_replacements:
+        replacements.update(extra_replacements)
+
     return input_flat, pm.do(
         pymc_model,
-        {name: repeated_xtensor},
+        replacements,
+    )
+
+
+def replace_variable_by_constant(pymc_model, name: str, xr_data: DataArray):
+    """Replace a model variable with a fixed xarray-backed xtensor.
+
+    Parameters
+    ----------
+    pymc_model : Model
+        The PyMC model containing the variable to replace.
+    name : str
+        Name of the variable to replace.
+    xr_data : xarray.DataArray
+        Constant data used as replacement. Its shape and dims must be
+        compatible with the target variable in the graph.
+
+    Returns
+    -------
+    Model
+        A copied PyMC model graph where ``name`` is replaced by ``xr_data``.
+    """
+    input_variable = as_xtensor(
+        pt.as_tensor_variable(xr_data.values),
+        dims=xr_data.dims,
+        name=name,
+    )
+
+    return pm.do(
+        pymc_model,
+        {name: input_variable},
     )
 
 

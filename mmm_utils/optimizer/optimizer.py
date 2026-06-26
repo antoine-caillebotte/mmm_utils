@@ -10,6 +10,8 @@ import numpy as np
 from scipy.optimize import minimize
 
 from pytensor.graph.basic import Variable
+import pytensor.tensor as pt
+from pytensor.xtensor.type import as_xtensor
 
 from .optimizer_utils import (
     replace_variable_by_optimization_variable,
@@ -195,17 +197,61 @@ class Optimizer:
         # 0. Create budget template
         budget = self.create_budget_template(constant_budget=constant_budget)
 
-        # 1. Extract the response distribution from the PyMC model and InferenceData
+        campaign_index = pd.date_range(
+            start=self._starting_date,
+            periods=self._campaign_period,
+            freq="W",
+        )
+
+        # Keep control_data aligned with the campaign horizon.
+        # This is required when product-media interactions depend on controls.
+        control_data = np.asarray(self.model["control_data"].eval(), dtype=float)
+        n_controls = control_data.shape[1]
+        control_names = list(self.model.coords.get("control", range(n_controls)))
+
+        if constant_budget:
+            control_values = np.repeat(
+                control_data[[-1], :], self._campaign_period, axis=0
+            )
+        else:
+            if control_data.shape[0] >= self._campaign_period:
+                control_values = control_data[-self._campaign_period :, :]
+            else:
+                control_values = np.repeat(
+                    control_data[[-1], :], self._campaign_period, axis=0
+                )
+
+        control_template = xr.DataArray(
+            control_values,
+            coords={"date": campaign_index, "control": control_names},
+            dims=["date", "control"],
+        )
+
+        control_xtensor = as_xtensor(
+            pt.as_tensor_variable(control_template.values),
+            dims=control_template.dims,
+            name="control_data",
+        )
+
+        extra_replacements = {"control_data": control_xtensor}
+
         if constant_budget:
             optimizable_budget, optimizable_model = (
                 replace_variable_by_repeated_optimization_variable(
-                    self.model, "channel_data", budget, n_repeat=self._campaign_period
+                    self.model,
+                    "channel_data",
+                    budget,
+                    n_repeat=self._campaign_period,
+                    extra_replacements=extra_replacements,
                 )
             )
         else:
             optimizable_budget, optimizable_model = (
                 replace_variable_by_optimization_variable(
-                    self.model, "channel_data", budget
+                    self.model,
+                    "channel_data",
+                    budget,
+                    extra_replacements=extra_replacements,
                 )
             )
 
