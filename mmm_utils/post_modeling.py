@@ -274,7 +274,7 @@ def plot_adstock_effects(data, mmm: MMM, media: list[str]):  # pylint: disable=t
     data_logger.clear()
     data_logger.record(date=time)
 
-    media_scales = mmm.scale("media")
+    media_scales = mmm.data.scale("media")
 
     for m in media:
         adstock = mmm.adstocks[m]
@@ -333,7 +333,7 @@ def plot_residuals(mmm, ax=None):
     if ax is None:
         _, ax = plt.subplots(figsize=(10, 4))
 
-    target_scale = mmm.scale("y")
+    target_scale = mmm.data.scale("y")
     posterior_predictive_y = mmm.idata.posterior_predictive.y * target_scale
     observed_y = mmm.idata.observed_data.y * target_scale
 
@@ -390,7 +390,7 @@ def plot_seasonality(mmm, ax=None):
     if ax is None:
         _, ax = plt.subplots(figsize=(10, 4))
 
-    target_scale = mmm.scale("y")
+    target_scale = mmm.data.scale("y")
     posterior_season = (
         mmm.idata.posterior.yearly_seasonality_contribution
         + mmm.idata.posterior.intercept_contribution
@@ -445,7 +445,7 @@ def plot_posterior_predictive_y(
     data_logger.clear()
 
     def _make_plot(ax):
-        target_scale = mmm.scale("y")
+        target_scale = mmm.data.scale("y")
         posterior_predictive_y = mmm.idata.posterior_predictive.y * target_scale
         date = mmm.idata.posterior_predictive.date
         predicted_mean = posterior_predictive_y.mean(dim=["chain", "draw"])
