@@ -88,7 +88,7 @@ def make_synthetic_data(n: int = 180, seed: int = 123):
     beta_c = np.array([-2, 2])
     beta_s = 2 * np.array([1, 1, 0.5, 0])
     beta_t = 4.2
-    beta_i = 2.0
+    beta_i = 10.0
     sigma = 2.0
 
     df["trend"] = np.linspace(start=0.0, stop=1, num=n)

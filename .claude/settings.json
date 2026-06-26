@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "Bash(python -m pytest tests/test_compute_groups.py -v)"
+    ]
+  }
+}

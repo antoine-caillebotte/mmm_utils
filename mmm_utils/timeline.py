@@ -6,6 +6,7 @@
 from __future__ import annotations
 import dataclasses
 
+import numpy as np
 import pandas as pd
 
 import xarray as xr
@@ -169,8 +170,18 @@ class Timeline:
         self._baseline_components = (
             baseline_components
             if baseline_components is not None
-            else ["control", "yearly_seasonality"]
+            else self._data.controls + ["yearly_seasonality"]
         )
+
+        overlapping_components = sorted(
+            set(self._baseline_components).intersection(self._data.controls)
+        )
+        if overlapping_components:
+            raise ValueError(
+                "Baseline components can't be in the list of controls. "
+                f"Found: {', '.join(overlapping_components)}"
+            )
+
         self._dim_name = {
             "date": "date",
             "media": "media",
@@ -186,13 +197,6 @@ class Timeline:
                 raise ValueError(
                     f"Unknown logical dimension name: {logical_name}. "
                     f"Valid options are: {', '.join(self._dim_name.keys())}."
-                )
-
-        for comp in self._baseline_components:
-            if comp not in ["control", "yearly_seasonality"]:
-                raise ValueError(
-                    f"Invalid baseline component: {comp}. "
-                    "Valid options are 'control' and 'yearly_seasonality' or both."
                 )
 
         self._buffer = TimelineDataBuffer(
@@ -376,38 +380,47 @@ class Timeline:
         yearly_seasonality = self._get_reduced_contribution(
             self.dim("yearly_seasonality")
         )
-        intercept = self._get_reduced_contribution(self.dim("intercept"))
-        baseline_timeline = intercept.sum(dim=self.dim("intercept"))
+
+        baseline_timeline = (
+            self._get_reduced_contribution(self.dim("control"))
+            .sel(
+                {
+                    self.dim("control"): [
+                        x
+                        for x in self._baseline_components
+                        if x != "yearly_seasonality"
+                    ]
+                }
+            )
+            .sum(dim=self.dim("control"))
+        )
+        if baseline_timeline.size == 0:
+            baseline_timeline = xr.DataArray(
+                np.zeros(len(media.coords[self.dim("date")])),
+                dims=["date"],
+                coords={"date": media.coords[self.dim("date")]},
+                name="baseline_timeline",
+            )
 
         all_contributions = media.copy()
-        for comp in ["control", "yearly_seasonality"]:
-            if comp not in self._baseline_components:
-                if comp == "control":
-                    control = control.rename({self.dim("control"): self.dim("media")})
-                    all_contributions = xr.concat(
-                        [all_contributions, control], dim=self.dim("media")
-                    )
-                elif comp == "yearly_seasonality":
-                    yearly_seasonality = yearly_seasonality.rename(
-                        {self.dim("yearly_seasonality"): self.dim("media")}
-                    )
+        # === Add control and yearly_seasonality to all_contributions if not in baseline ===
+        control = control.rename({self.dim("control"): self.dim("media")})
+        all_contributions = xr.concat(
+            [all_contributions, control], dim=self.dim("media")
+        )
 
-                    all_contributions = xr.concat(
-                        [all_contributions, yearly_seasonality], dim=self.dim("media")
-                    )
+        if "yearly_seasonality" in self._baseline_components:
+            baseline_timeline += yearly_seasonality.sum(
+                dim=self.dim("yearly_seasonality")
+            )
+        else:
+            yearly_seasonality = yearly_seasonality.rename(
+                {self.dim("yearly_seasonality"): self.dim("media")}
+            )
 
-            else:
-                if comp == "control":
-                    baseline_timeline += control.sum(dim=self.dim("control"))
-                elif comp == "yearly_seasonality":
-                    baseline_timeline += yearly_seasonality.sum(
-                        dim=self.dim("yearly_seasonality")
-                    )
-
-                elif comp == "intercept":
-                    pass  # already included
-                else:
-                    raise ValueError(f"Unknown baseline component: {comp}")
+            all_contributions = xr.concat(
+                [all_contributions, yearly_seasonality], dim=self.dim("media")
+            )
 
         return all_contributions, baseline_timeline
 

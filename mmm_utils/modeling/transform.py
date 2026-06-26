@@ -1,9 +1,8 @@
 """
-Abstract base class for transformations.
+Abstract base class for media transformations.
 
-The module provides a base class for transformations that can be applied to
-media signals. Implementations accept numeric or symbolic parameters so they
-can be used directly inside PyMC/PyTensor computation graphs.
+Imported by :mod:`.adstocks` and :mod:`.saturation` to avoid a circular
+dependency with :mod:`.transform_handler` (which imports those modules).
 """
 
 from dataclasses import dataclass, field

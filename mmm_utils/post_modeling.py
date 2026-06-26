@@ -10,6 +10,8 @@ import xarray as xr
 from pytensor.xtensor.type import as_xtensor
 
 from mmm_utils.modeling.mmm import MMM
+from mmm_utils.modeling.adstocks import Adstock
+from mmm_utils.modeling.model_definition.mmm_config import _compute_adstock_groups
 from mmm_utils.data_logger import data_logger
 
 
@@ -249,7 +251,7 @@ def rope_probability_test(  # pylint: disable=too-many-arguments, too-many-local
     return rope_df[rope_df["decision"] == "?"]
 
 
-def plot_adstock_effects(data, mmm: MMM, media: list[str]):  # pylint: disable=too-many-locals
+def plot_adstock_effects(data, mmm: MMM, media: list[str]):  # pylint: disable=too-many-locals, too-many-statements, too-many-branches
     """Plot adstock-transformed media effects over time.
 
     Parameters
@@ -275,31 +277,87 @@ def plot_adstock_effects(data, mmm: MMM, media: list[str]):  # pylint: disable=t
     data_logger.record(date=time)
 
     media_scales = mmm.data.scale("media")
+    posterior_ds = mmm.idata.posterior.to_dataset()
+
+    adstock_groups = _compute_adstock_groups(
+        mmm.config.media_names, mmm.config.media_transforms
+    )
+    single_group = len(adstock_groups) == 1
+
+    # Build channel -> (var_name, coord_dim, coord_value) for stochastic params.
+    channel_var: dict[str, dict[str, tuple[str, str | None, str | None]]] = {}
+    for grp_idx, group_names in enumerate(adstock_groups):
+        for name in group_names:
+            spec = mmm.config.media_transforms.get(name)
+            if spec is None:
+                continue
+            param_vars: dict[str, tuple[str, str | None, str | None]] = {}
+            for pname in spec.adstock_priors:
+                if single_group:
+                    param_vars[pname] = (f"adstock_{pname}", "media", name)
+                elif len(group_names) == 1:
+                    param_vars[pname] = (f"adstock_{pname}[{name}]", None, None)
+                else:
+                    grp_dim = f"media_agrp{grp_idx}"
+                    param_vars[pname] = (
+                        f"adstock_{pname}_agrp{grp_idx}",
+                        grp_dim,
+                        name,
+                    )
+            channel_var[name] = param_vars
 
     for m in media:
-        adstock = mmm.adstocks[m]
+        spec = mmm.config.media_transforms.get(m)
+        if spec is None or spec.adstock == "none":
+            spend_np = np.asarray(data[m], dtype=np.float64)
+            ax.plot(time, spend_np, label=m)
+            data_logger.record(**{f"{m}_adstock_effect": spend_np})
+            continue
 
-        adstock_param = {}
-        for k, p in adstock["params"].items():
-            pname = str(p)
-            if pname in mmm.idata.posterior:
-                adstock_param[k] = float(
-                    mmm.idata.posterior[pname].mean(dim=["chain", "draw"]).values
-                )
-            else:
-                adstock_param[k] = p
+        # Build concrete params: fixed values from adstock_params, posterior
+        # means for stochastic params from adstock_priors.
+        transform_params: dict[str, float] = {}
+        for pname, pval in spec.adstock_params.items():
+            if pname in ("l_max", "normalize"):
+                continue
+            transform_params[pname] = pval
 
-        spend_np = data[m] / media_scales[m]
-        spend_np = as_xtensor(spend_np, dims=["date"])
-        y = adstock["function"](spend_np, adstock_param).eval()
-        y_np = np.asarray(y, dtype=np.float64).ravel() * media_scales[m]
-        ax.plot(time, y_np, label=f"{m} ({adstock_param['alpha']:.2f})")
+        for pname, (var_name, coord_dim, coord_value) in channel_var.get(m, {}).items():
+            if var_name not in posterior_ds:
+                continue
+            da = posterior_ds[var_name].mean(dim=["chain", "draw"])
+            if coord_dim is not None:
+                da = da.sel({coord_dim: coord_value})
+            transform_params[pname] = float(da)
 
-        data_logger.record(
-            **{f"{m}_adstock_effect": y_np, f"{m}_alpha": adstock_param["alpha"]}
+        l_max = spec.adstock_params.get("l_max", 12)
+        normalize = spec.adstock_params.get("normalize", False)
+
+        adstock = Adstock.from_spec(
+            kind=spec.adstock,
+            dim="date",
+            l_max=l_max,
+            normalize=normalize,
+            params=transform_params,
         )
 
-    ax.set_xlabel("Lag")
+        spend_scaled = np.asarray(data[m], dtype=np.float64) / media_scales[m]
+        spend_xt = as_xtensor(spend_scaled, dims=("date",))
+        y_np = (
+            np.asarray(adstock(spend_xt).eval(), dtype=np.float64).ravel()
+            * media_scales[m]
+        )
+
+        alpha_val = transform_params.get("alpha")
+        label = f"{m} ({alpha_val:.2f})" if isinstance(alpha_val, float) else m
+        ax.plot(time, y_np, label=label)
+
+        log_kwargs: dict = {f"{m}_adstock_effect": y_np}
+        if alpha_val is not None:
+            log_kwargs[f"{m}_alpha"] = alpha_val
+        data_logger.record(**log_kwargs)
+
+    ax.set_xlabel("Date")
     ax.set_ylabel("Adstock Effect")
     ax.set_title("Adstock Effects by Media")
     ax.legend()
@@ -391,11 +449,13 @@ def plot_seasonality(mmm, ax=None):
         _, ax = plt.subplots(figsize=(10, 4))
 
     target_scale = mmm.data.scale("y")
-    posterior_intercept = (
-        mmm.idata.posterior.controls["intercept"] * target_scale
-        if "intercept" in mmm.idata.posterior.controls
-        else 0.0
-    )
+
+    posterior_intercept = 0.0
+    if "intercept" in mmm.idata.posterior.control_contribution.control:
+        posterior_intercept = (
+            mmm.idata.posterior.control_contribution.sel(control="intercept")
+            * target_scale
+        )
     posterior_season = (
         mmm.idata.posterior.yearly_seasonality_contribution
     ) * target_scale
@@ -528,7 +588,7 @@ def plot_posterior_predictive_y(
     return fig, ax
 
 
-def adstock_to_half_life(mmm, media: list[str]) -> pd.DataFrame:
+def adstock_to_half_life(mmm, media: list[str]) -> pd.DataFrame:  # pylint: disable=too-many-locals
     """Convert adstock alpha parameters to half-life and end-of-effect metrics.
 
     Parameters
@@ -544,20 +604,40 @@ def adstock_to_half_life(mmm, media: list[str]) -> pd.DataFrame:
         DataFrame with one row per media channel and columns:
         ``media``, ``adstock_alpha``, ``half_life``, and ``end_adstock``.
     """
-    adstock_alpha = {
-        m: f"adstock_alpha[{m}]"
-        for m in media
-        if m in mmm.config.media_transforms
-        and "alpha" in mmm.config.media_transforms[m].adstock_priors
-    }
-    if len(adstock_alpha) == 0:
-        return pd.DataFrame({"media": [], "adstock_alpha": [], "half_life": []})
-
-    alphas = (
-        mmm.idata.posterior.to_dataset()[list(adstock_alpha.values())]
-        .mean(dim=["chain", "draw"])
-        .to_array()
+    adstock_groups = _compute_adstock_groups(
+        mmm.config.media_names, mmm.config.media_transforms
     )
+    single_group = len(adstock_groups) == 1
+
+    # Build channel -> (var_name, coord_dim, coord_value) for stochastic alphas.
+    # coord_dim=None means the variable is a scalar (singleton group).
+    channel_var: dict[str, tuple[str, str | None, str | None]] = {}
+    for grp_idx, group_names in enumerate(adstock_groups):
+        for name in group_names:
+            spec = mmm.config.media_transforms.get(name)
+            if spec is None or "alpha" not in spec.adstock_priors:
+                continue
+            if single_group:
+                channel_var[name] = ("adstock_alpha", "media", name)
+            elif len(group_names) == 1:
+                channel_var[name] = (f"adstock_alpha[{name}]", None, None)
+            else:
+                grp_dim = f"media_agrp{grp_idx}"
+                channel_var[name] = (f"adstock_alpha_agrp{grp_idx}", grp_dim, name)
+
+    posterior_ds = mmm.idata.posterior.to_dataset() if channel_var else None
+
+    stochastic_alphas: dict[str, float] = {}
+    for m in media:
+        if m not in channel_var:
+            continue
+        var_name, coord_dim, coord_value = channel_var[m]
+        if var_name not in posterior_ds:  # pylint: disable=unsupported-membership-test
+            continue
+        da = posterior_ds[var_name].mean(dim=["chain", "draw"])  # pylint: disable=unsubscriptable-object
+        if coord_dim is not None:
+            da = da.sel({coord_dim: coord_value})
+        stochastic_alphas[m] = float(da)
 
     fixed_alphas = {
         m: mmm.config.media_transforms[m].adstock_params["alpha"]
@@ -565,13 +645,12 @@ def adstock_to_half_life(mmm, media: list[str]) -> pd.DataFrame:
         if m in mmm.config.media_transforms
         and "alpha" in mmm.config.media_transforms[m].adstock_params
     }
-    df_media = list(adstock_alpha.keys()) + list(fixed_alphas.keys())
-    alphas = np.concatenate(
-        [
-            alphas.to_numpy(),
-            np.array([fixed_alphas[m] for m in fixed_alphas]),
-        ]
-    )
+
+    if not stochastic_alphas and not fixed_alphas:
+        return pd.DataFrame({"media": [], "adstock_alpha": [], "half_life": []})
+
+    df_media = list(stochastic_alphas.keys()) + list(fixed_alphas.keys())
+    alphas = np.array(list(stochastic_alphas.values()) + list(fixed_alphas.values()))
 
     half_lives = -np.log(2) / np.log(alphas)
     end_adstock = -np.log(100) / np.log(alphas)

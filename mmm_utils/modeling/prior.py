@@ -213,17 +213,47 @@ def _prior_pdf(prior_spec: PriorSpec, x_grid: np.ndarray, name_idx: int) -> np.n
     return np.exp(pm.logp(dist, x_grid).eval())
 
 
-def _get_group_var_values(group, var: str, media: str) -> np.ndarray:
-    """Extract flattened draws for one indexed component from an idata group."""
+def _normalize_var_name(var: str) -> str:
+    """Strip adstock/saturation group suffixes (``_agrp{i}``, ``_sgrp{i}``) from a variable name."""
+    return re.sub(r"_(agrp|sgrp)\d+$", "", var)
+
+
+def _get_group_var_values(group, var: str, media: str | None) -> np.ndarray:
+    """Extract flattened draws for one indexed component from an idata group.
+
+    When ``media`` is ``None`` the variable is treated as having no media
+    coordinate (e.g. shared interaction priors) and all draws are returned
+    flattened without any coordinate selection.
+    """
     if var in group.data_vars:
         da = group[var]
-    elif f"{var}[{media}]" in group.data_vars:
+    elif media is not None and f"{var}[{media}]" in group.data_vars:
         da = group[f"{var}[{media}]"]
     else:
-        raise ValueError(
-            f"Variable '{var}' or '{var}[{media}]' not found in idata group."
-            " Available variables: {list(group.data_vars)}"
-        )
+        # Search for group-suffixed variants: adstock_alpha_agrp0, saturation_lam_sgrp0, …
+        base = _normalize_var_name(var)
+        pattern = re.compile(rf"^{re.escape(base)}_(agrp|sgrp)\d+$")
+        da = None
+        for candidate in group.data_vars:
+            if not pattern.match(candidate):
+                continue
+            da_candidate = group[candidate]
+            if media is None:
+                da = da_candidate
+                break
+            value_dims = [d for d in da_candidate.dims if d not in ("chain", "draw")]
+            if value_dims and media in da_candidate.coords.get(value_dims[0], []):
+                da = da_candidate
+                break
+        if da is None:
+            suffix = f" or '{var}[{media}]'" if media is not None else ""
+            raise ValueError(
+                f"Variable '{var}'{suffix} not found in idata group."
+                f" Available variables: {list(group.data_vars)}"
+            )
+
+    if media is None:
+        return np.asarray(da.values, dtype=np.float64).reshape(-1)
 
     value_dims = [d for d in da.dims if d not in ("chain", "draw")]
 
@@ -236,42 +266,44 @@ def _get_group_var_values(group, var: str, media: str) -> np.ndarray:
     return np.asarray(da.values, dtype=np.float64).reshape(-1)
 
 
-def _resolve_prior_spec_for_var(mmm, var: str, media_name: str) -> PriorSpec:
+def _resolve_prior_spec_for_var(mmm, var: str, media_name: str | None) -> PriorSpec:
     """Resolve PriorSpec from MMM config for a variable/component."""
     cfg = mmm.config
+    base_var = _normalize_var_name(var)  # strip _agrp{i} / _sgrp{i} if present
 
     direct_map = {
-        "intercept": cfg.prior_intercept,
-        "beta_media": cfg.prior_media,
-        "beta_control": cfg.prior_control,
+        "beta_media": cfg.beta_priors.media,
+        "beta_control": cfg.beta_priors.control,
         "sigma": cfg.prior_sigma,
-        "beta_season": cfg.prior_season,
+        "beta_season": cfg.beta_priors.season,
     }
-    if var in direct_map:
-        return direct_map[var]
+    if base_var in direct_map:
+        return direct_map[base_var]
 
-    # var = adstock_theta, adstock_alpha & media_name = TV, SEA, ...
-    if media_name in cfg.media_transforms.keys():
-        param_name = re.sub(r"adstock_(\w+)", r"\1", var)
-        if param_name in cfg.media_transforms[media_name].adstock_priors.keys():
-            spec = cfg.media_transforms[media_name].adstock_priors.get(param_name)
-            return spec
+    # Interaction priors — no media coordinate, media_name may be None
+    if base_var in cfg.beta_priors.priors:
+        return cfg.beta_priors.priors[base_var]
 
-    # var = saturation_lam, saturation_k, ... & media_name = TV, SEA, ...
-    if media_name in cfg.media_transforms.keys():
-        match = re.fullmatch(r"saturation_(\w+)", var)
+    if media_name is None:
+        raise ValueError(
+            f"Cannot resolve prior specification for variable '{var}'. "
+            "Pass a media name for adstock/saturation variables."
+        )
+
+    # base_var = adstock_theta, adstock_alpha & media_name = TV, SEA, ...
+    if media_name in cfg.media_transforms:
+        param_name = re.sub(r"adstock_(\w+)", r"\1", base_var)
+        if param_name in cfg.media_transforms[media_name].adstock_priors:
+            return cfg.media_transforms[media_name].adstock_priors[param_name]
+
+    # base_var = saturation_lam, saturation_k, ... & media_name = TV, SEA, ...
+    if media_name in cfg.media_transforms:
+        match = re.fullmatch(r"saturation_(\w+)", base_var)
         if match:
             param_name = match.group(1)
             saturation_priors = cfg.media_transforms[media_name].saturation_priors
-            if param_name in saturation_priors.keys():
-                spec = saturation_priors.get(param_name)
-                return spec
-
-    if var == "umbrella" and media_name in cfg.prior_umbrella:
-        return cfg.prior_umbrella[media_name]
-
-    if var == "product_media" and media_name in cfg.prior_product_media:
-        return cfg.prior_product_media[media_name]
+            if param_name in saturation_priors:
+                return saturation_priors[param_name]
 
     raise ValueError(
         f"Cannot resolve prior specification for variable '{var}' and media '{media_name}'."
@@ -279,7 +311,13 @@ def _resolve_prior_spec_for_var(mmm, var: str, media_name: str) -> PriorSpec:
 
 
 def plot_prior_vs_posterior(  # pylint: disable=too-many-locals
-    mmm, var: str, media: list[str], *, ncol: int = 3, figsize=(12, 8), seperately=False
+    mmm,
+    var: str,
+    media: list[str] | None,
+    *,
+    ncol: int = 3,
+    figsize=(12, 8),
+    seperately=False,
 ):  # pylint: disable=too-many-arguments
     """Plot prior and posterior distributions for a given variable and media.
 
@@ -289,8 +327,10 @@ def plot_prior_vs_posterior(  # pylint: disable=too-many-locals
         MMM object containing inference data and config priors.
     var : str
         Variable name to plot.
-    media : list[str]
-        Media names used for component labels.
+    media : list[str] or None
+        Media names used for component labels.  Pass ``None`` for variables
+        without a media coordinate (e.g. shared interaction priors), in which
+        case a single distribution is plotted for the whole variable.
     ncol : int, optional
         Number of columns for subplots when ``seperately`` is True.
     figsize : tuple[int, int], optional
@@ -320,14 +360,19 @@ def plot_prior_vs_posterior(  # pylint: disable=too-many-locals
     prior_group = mmm.idata.prior
     posterior_group = mmm.idata.posterior
 
+    # None → single scalar/interaction variable; treat as a one-element list
+    media_list: list[str | None] = media if media is not None else [None]
+
     def _make_plot(ax, i, name):
         prior_sample = _get_group_var_values(prior_group, var, name)
         posterior_sample = _get_group_var_values(posterior_group, var, name)
 
+        label_name = name if name is not None else var
+
         sns.kdeplot(
             prior_sample,
             ax=ax,
-            label=f"{name} - Prior (sampled)",
+            label=f"{label_name} - Prior (sampled)",
             color=f"C{i}",
             fill=True,
             cut=0 if np.min(prior_sample) >= 0 else 3,
@@ -336,7 +381,7 @@ def plot_prior_vs_posterior(  # pylint: disable=too-many-locals
         sns.kdeplot(
             posterior_sample,
             ax=ax,
-            label=f"{name} - Posterior",
+            label=f"{label_name} - Posterior",
             color=f"C{i}",
             fill=False,
             cut=0 if np.min(posterior_sample) >= 0 else 3,
@@ -349,17 +394,24 @@ def plot_prior_vs_posterior(  # pylint: disable=too-many-locals
 
         prior_spec = _resolve_prior_spec_for_var(mmm, var, name)
 
-        if var in prior_group.data_vars:
-            da_prior = prior_group[var]
+        base_var = _normalize_var_name(var)
+        name_idx = 0
+        candidates = [var] + [
+            v
+            for v in prior_group.data_vars
+            if re.match(rf"^{re.escape(base_var)}_(agrp|sgrp)\d+$", v)
+        ]
+        for candidate in candidates:
+            if candidate not in prior_group.data_vars:
+                continue
+            da_prior = prior_group[candidate]
             dims = [d for d in da_prior.dims if d not in ("chain", "draw")]
-            if dims:
+            if dims and name is not None:
                 coord_values = np.asarray(da_prior.coords[dims[0]].values)
                 matches = np.where(coord_values == name)[0]
-                name_idx = int(matches[0])
-            else:
-                name_idx = 0
-        else:
-            name_idx = 0
+                if len(matches):
+                    name_idx = int(matches[0])
+            break
 
         pdf_values = _prior_pdf(prior_spec, x_grid, name_idx)
 
@@ -369,12 +421,12 @@ def plot_prior_vs_posterior(  # pylint: disable=too-many-locals
             color=f"C{i}",
             linestyle="--",
             linewidth=2,
-            label=f"{name} - {prior_spec.kind} PDF",
+            label=f"{label_name} - {prior_spec.kind} PDF",
         )
         ax.legend()
 
     if seperately:
-        nrow = int(np.ceil(len(media) / ncol))
+        nrow = int(np.ceil(len(media_list) / ncol))
         fig, axes = plt.subplots(nrow, ncol, figsize=figsize)
 
         if ncol == 1:
@@ -382,16 +434,18 @@ def plot_prior_vs_posterior(  # pylint: disable=too-many-locals
         if nrow == 1:
             axes = axes[None, :]
 
-        for i, m in enumerate(media):
+        for i, m in enumerate(media_list):
             _make_plot(axes[i // ncol, i % ncol], i, m)
 
-        for ax in axes.flatten()[len(media) :]:
+        for ax in axes.flatten()[len(media_list) :]:
             ax.set_visible(False)
     else:
         fig, axes = plt.subplots(figsize=figsize)
-        for i, m in enumerate(media):
+        for i, m in enumerate(media_list):
             _make_plot(axes, i, m)
-        axes.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15), ncol=len(media))
+        axes.legend(
+            loc="upper center", bbox_to_anchor=(0.5, -0.15), ncol=len(media_list)
+        )
 
     fig.suptitle(var, fontsize=16, fontweight="bold")
     plt.tight_layout()

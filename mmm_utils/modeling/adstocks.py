@@ -75,7 +75,18 @@ def batched_convolution(
     x = as_xtensor(x)
     w = as_xtensor(w)
 
-    zeros = as_xtensor(pt.zeros(lags - 1, dtype=x.dtype), dims=(dim,))
+    if x.values.ndim == 1:
+        zeros = as_xtensor(pt.zeros(lags - 1, dtype=x.dtype), dims=(dim,))
+    else:
+        # Batched input: build padding that matches x's full shape,
+        # replacing the signal dimension size with (lags - 1).
+        dim_axis = x.type.dims.index(dim)
+        pad_shape = [
+            lags - 1 if i == dim_axis else pt.shape(x.values)[i]
+            for i in range(x.values.ndim)
+        ]
+        zeros = as_xtensor(pt.zeros(pad_shape, dtype=x.dtype), dims=x.type.dims)
+
     padded_x = ptx.concat([zeros, x], dim=dim)
     return ptx.signal.convolve1d(padded_x, w, dims=(dim, kernel_dim), mode="valid")
 
@@ -101,11 +112,11 @@ def _check_alpha(alpha: ParamLike) -> ParamLike:
     ValueError
         If a numeric alpha is outside [0, 1].
     """
-    alpha_tensor = as_xtensor(alpha).values
+    alpha_xt = as_xtensor(alpha)
     alpha_checked = _alpha_check_op(
-        alpha_tensor, (alpha_tensor >= 0) & (alpha_tensor <= 1).all()
+        alpha_xt.values, ((alpha_xt.values >= 0) & (alpha_xt.values <= 1)).all()
     )
-    return as_xtensor(alpha_checked)
+    return as_xtensor(alpha_checked, dims=alpha_xt.type.dims)
 
 
 _theta_check_op = CheckParameterValue(msg="0 <= theta < l_max")
@@ -129,11 +140,11 @@ def _check_theta(theta: ParamLike, l_max: int) -> ParamLike:
     ValueError
         If a numeric theta is outside [0, l_max).
     """
-    theta_tensor = as_xtensor(theta).values
+    theta_xt = as_xtensor(theta)
     theta_checked = _theta_check_op(
-        theta_tensor, (theta_tensor >= 0) & (theta_tensor < l_max).all()
+        theta_xt.values, ((theta_xt.values >= 0) & (theta_xt.values < l_max)).all()
     )
-    return as_xtensor(theta_checked)
+    return as_xtensor(theta_checked, dims=theta_xt.type.dims)
 
 
 # ------------------------------------------------------------------

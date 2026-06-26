@@ -706,8 +706,8 @@ def plot_saturation_curves(  # pylint: disable=too-many-locals
         Dictionary mapping media channel names to their corresponding Axes objects.
     """
     fig, ax = plt.subplots(len(media) // 3 + 1, 3, figsize=(16, 5))
-    media_scales = mmm._scales["media"]  # pylint: disable=protected-access
-    target_scale = mmm._scales["y"]  # pylint: disable=protected-access
+    media_scales = mmm.data.scale("media")
+    target_scale = mmm.data.scale("y")
 
     contrib = mmm.idata.posterior.media_contribution.sel(media=media).mean(
         dim=["chain", "draw"]

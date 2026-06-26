@@ -1,0 +1,4785 @@
+{
+  "code_module": "MMM_ANTOINE",
+  "created_at": "2026-06-26 14:13:40.847451",
+  "labels": {
+    "currency": "",
+    "outcome_unit": "Requêtes carto",
+    "outcome_contribution": "Contribution aux requêtes carto",
+    "media_attributed_outcome": "Requêtes carto réalisées grâce aux médias",
+    "cost_per_outcome": "Coût par requête carto réalisée"
+  },
+  "mediagroups": {
+    "TV": [
+      "TV"
+    ],
+    "SEA": [
+      "SEA"
+    ],
+    "Social": [
+      "Social"
+    ]
+  },
+  "recommendations": [
+    {
+      "name": "TV",
+      "spend": {
+        "low": 0.12455484937768034,
+        "medium": 0.09341613703326025,
+        "high": 0.06227742468884017
+      }
+    },
+    {
+      "name": "SEA",
+      "spend": {
+        "low": 0.22560273161147407,
+        "medium": 0.26320318688005306,
+        "high": 0.30080364214863214
+      }
+    },
+    {
+      "name": "Social",
+      "spend": {
+        "low": 0.24093402815640627,
+        "medium": 0.2344722852322474,
+        "high": 0.2280105423080884
+      }
+    }
+  ],
+  "saturation": {
+    "media": [
+      {
+        "name": "TV",
+        "values": {
+          "0": 2.818834659844595,
+          "1": 3.930651846898328,
+          "2": 3.9382959511026634
+        }
+      },
+      {
+        "name": "SEA",
+        "values": {
+          "0": 0.6102303489164311,
+          "1": 1.1520215092532904,
+          "2": 1.156974438228328
+        }
+      },
+      {
+        "name": "Social",
+        "values": {
+          "0": 1.8257205891215758,
+          "1": 3.44668106443634,
+          "2": 3.4614995086881546
+        }
+      }
+    ],
+    "details": [
+      {
+        "name": "TV",
+        "values": {
+          "0": 2.818834659844595,
+          "1": 3.930651846898328,
+          "2": 3.9382959511026634
+        }
+      },
+      {
+        "name": "SEA",
+        "values": {
+          "0": 0.6102303489164311,
+          "1": 1.1520215092532904,
+          "2": 1.156974438228328
+        }
+      },
+      {
+        "name": "Social",
+        "values": {
+          "0": 1.8257205891215758,
+          "1": 3.44668106443634,
+          "2": 3.4614995086881546
+        }
+      }
+    ]
+  },
+  "timeline": {
+    "2023-01-16": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 3.511711904965315
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0975760515081907,
+        "outcome": 0.2876076010769645
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0543713198534737,
+        "outcome": 0.06355728772629503
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2019566195022106,
+        "outcome": 0.10338778128486827
+      }
+    ],
+    "2023-01-23": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 5.75101120655638
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0513940952633428,
+        "outcome": 1.143834215821284
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1812203220841033,
+        "outcome": 0.08182883324666577
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.7087937285327234,
+        "outcome": 0.3844676614484508
+      }
+    ],
+    "2023-01-30": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 3.384639666377386
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0232057710909463,
+        "outcome": 0.771196293520931
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2581033145643355,
+        "outcome": 0.08197252043736943
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1366141948060376,
+        "outcome": 0.6371019688498604
+      }
+    ],
+    "2023-02-06": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 4.188921075551845
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.2338631794391744,
+        "outcome": 0.5478257031467281
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1016314506649751,
+        "outcome": 0.19035315943573353
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1041857538696556,
+        "outcome": 0.45192726988449267
+      }
+    ],
+    "2023-02-13": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 6.149446582234918
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.2485828500930668,
+        "outcome": 0.7112231956482621
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2209635086563545,
+        "outcome": 0.270524377284553
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.291885022238018,
+        "outcome": 0.6334687646117542
+      }
+    ],
+    "2023-02-20": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 4.3906892389874415
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.2077962582761998,
+        "outcome": 1.2490154047143542
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.3923230582351799,
+        "outcome": 0.3136069578630831
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.6020856021642144,
+        "outcome": 1.0471381561642348
+      }
+    ],
+    "2023-02-27": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 4.954108583254483
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0421285720119534,
+        "outcome": 0.7854883063901021
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0652893527678026,
+        "outcome": 0.2836049962464624
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1056397042350726,
+        "outcome": 0.5427991457496831
+      }
+    ],
+    "2023-03-06": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 6.409849743586072
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0907710371606748,
+        "outcome": 0.4187291048881814
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0482933135839813,
+        "outcome": 0.28676641479377984
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0158521168108022,
+        "outcome": 0.33701281223704244
+      }
+    ],
+    "2023-03-13": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 6.613642900702309
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0670906122510243,
+        "outcome": 0.2105101138698099
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.037506712592512,
+        "outcome": 0.2820274161925222
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0006053937370348,
+        "outcome": 0.23149214877389193
+      }
+    ],
+    "2023-03-20": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 6.351562634474747
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0708184312632192,
+        "outcome": 0.260062339973691
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1929394112303273,
+        "outcome": 0.2822198317457253
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1030136417771834,
+        "outcome": 0.49908393700138504
+      }
+    ],
+    "2023-03-27": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 3.7779892126219075
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.034963816769692,
+        "outcome": 0.23313822719014632
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2738106047603075,
+        "outcome": 0.2693466989404229
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0688846592502493,
+        "outcome": 0.7521909714486846
+      }
+    ],
+    "2023-04-03": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 4.077637011590738
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0410393540473168,
+        "outcome": 1.01153634822463
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1932395546866848,
+        "outcome": 0.26360702926139257
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.6033526816760424,
+        "outcome": 0.6874180106392999
+      }
+    ],
+    "2023-04-10": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.4256908791122402
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.3676220763487556,
+        "outcome": 0.6071706589450353
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0290466127155947,
+        "outcome": 0.37807955455267617
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0581860678986725,
+        "outcome": 0.3496628865820919
+      }
+    ],
+    "2023-04-17": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.7500198274517054
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0038777656144642,
+        "outcome": 0.33668363532072165
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.3463416109791588,
+        "outcome": 0.32418469661007415
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0230883009937722,
+        "outcome": 0.8639894437655076
+      }
+    ],
+    "2023-04-24": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 1.513200393708608
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.2260684606595258,
+        "outcome": 0.4360853401743489
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1312365313031419,
+        "outcome": 0.3761730655891317
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1744357206656064,
+        "outcome": 0.615278893199408
+      }
+    ],
+    "2023-05-01": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 1.3932938876263288
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0894472730873365,
+        "outcome": 0.7118265808429918
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0951720531856082,
+        "outcome": 0.34564476504274355
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.327095014330424,
+        "outcome": 0.4542405036728816
+      }
+    ],
+    "2023-05-08": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.3507702130978076
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.3378378464236122,
+        "outcome": 1.006310999439234
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.040844408916134,
+        "outcome": 0.41337825328238315
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.4254642935727128,
+        "outcome": 0.2856599988143583
+      }
+    ],
+    "2023-05-15": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 0.8296532661726633
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0815839905271593,
+        "outcome": 1.5035810323318402
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0965088000350602,
+        "outcome": 0.3694256562996955
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.6748200637490345,
+        "outcome": 0.3289067936808372
+      }
+    ],
+    "2023-05-22": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 0.29032810582917334
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0646352193444795,
+        "outcome": 1.3333568830138514
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2350388046377944,
+        "outcome": 0.34689483139739713
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.3874799852835543,
+        "outcome": 0.6223415222630546
+      }
+    ],
+    "2023-05-29": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": -0.3215677758111401
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.3546095646487126,
+        "outcome": 0.7258515645029864
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.6332149840669095,
+        "outcome": 0.4347969509947335
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0272063395231944,
+        "outcome": 1.5555063504246183
+      }
+    ],
+    "2023-06-05": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 0.5314062180039185
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0324920736952022,
+        "outcome": 0.5747833099971067
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.221907800568192,
+        "outcome": 0.38339148753927144
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1398022894898632,
+        "outcome": 1.051994700759774
+      }
+    ],
+    "2023-06-12": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": -0.9940614869165643
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0043114548539733,
+        "outcome": 0.44736929666743164
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.3071633285106468,
+        "outcome": 0.33890097030627087
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1063567675873826,
+        "outcome": 1.0613851514799288
+      }
+    ],
+    "2023-06-19": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": -1.4370800593381732
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.089196365515493,
+        "outcome": 0.7058182827854571
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.3185082199157769,
+        "outcome": 0.34191057404319586
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.3182431914218971,
+        "outcome": 1.0888305710659254
+      }
+    ],
+    "2023-06-26": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 0.7190043070400249
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0700271998014333,
+        "outcome": 0.459912711908341
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0250826802385684,
+        "outcome": 0.3356443186713827
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.070219176322007,
+        "outcome": 0.5023884426689168
+      }
+    ],
+    "2023-07-03": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 0.864489841428098
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.4805886699848683,
+        "outcome": 0.8530009553170235
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1952424222973576,
+        "outcome": 0.4539023499276496
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.4030052890087205,
+        "outcome": 0.649377613076183
+      }
+    ],
+    "2023-07-10": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": -0.7600039559867641
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1266719068507971,
+        "outcome": 1.6433514637937483
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0376024001470886,
+        "outcome": 0.43432887942612597
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.8115925958287715,
+        "outcome": 0.35443605361593344
+      }
+    ],
+    "2023-07-17": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": -1.3288720342422755
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0240231628678394,
+        "outcome": 1.0489248045805666
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0054972568019647,
+        "outcome": 0.37323022422269697
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1472702383888214,
+        "outcome": 0.17538794500236649
+      }
+    ],
+    "2023-07-24": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": -1.1611514099736446
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0416677483355367,
+        "outcome": 1.1130016617691292
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0075194579673183,
+        "outcome": 0.34519152076058734
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.3925243064079274,
+        "outcome": 0.10592897475292236
+      }
+    ],
+    "2023-07-31": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": -0.7775682251470052
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0495751446737349,
+        "outcome": 0.6346796445600864
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0801602107482098,
+        "outcome": 0.3054337993346268
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0521736060163864,
+        "outcome": 0.22006442144019298
+      }
+    ],
+    "2023-08-07": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": -0.5248273764053228
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.3512586179335171,
+        "outcome": 0.705399637467215
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2857280545552825,
+        "outcome": 0.40591374101350813
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2505568675721125,
+        "outcome": 0.6869300587588584
+      }
+    ],
+    "2023-08-14": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 1.7525187628404795
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0189544663464119,
+        "outcome": 0.556938088611037
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1862951519519068,
+        "outcome": 0.3553123763298588
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1355597957048603,
+        "outcome": 0.6455409073418552
+      }
+    ],
+    "2023-08-21": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 0.1437566913378285
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0885129355210284,
+        "outcome": 0.6927056831322899
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.100437560234345,
+        "outcome": 0.3230484062669067
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2759771623146926,
+        "outcome": 0.463000705522958
+      }
+    ],
+    "2023-08-28": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": -0.8982302552635896
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0451857021499307,
+        "outcome": 0.8460089885069139
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2166116427999453,
+        "outcome": 0.3055160418429483
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.3337948513768224,
+        "outcome": 0.6362480500774561
+      }
+    ],
+    "2023-09-04": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.648210177671631
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0284574206487403,
+        "outcome": 0.6459264543823653
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.3125753057791279,
+        "outcome": 0.289589892536317
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1483136536427092,
+        "outcome": 0.8881803452243469
+      }
+    ],
+    "2023-09-11": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": -0.1916665744717678
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1988441400966792,
+        "outcome": 0.46357587427559266
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0612873126334548,
+        "outcome": 0.33747193800172626
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0907591052599754,
+        "outcome": 0.48249411628745803
+      }
+    ],
+    "2023-09-18": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 1.5988555659377521
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.3259244268023659,
+        "outcome": 0.3839043567969289
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1622489811125032,
+        "outcome": 0.417266506238117
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0968229019827196,
+        "outcome": 0.5536852789589138
+      }
+    ],
+    "2023-09-25": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": -0.7758893480961736
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0223952948181645,
+        "outcome": 0.2259168697681635
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2405269703120735,
+        "outcome": 0.32950408128595887
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0243028446365389,
+        "outcome": 0.718494155575134
+      }
+    ],
+    "2023-10-02": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": -1.1928379000360856
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0145712433361107,
+        "outcome": 0.15860571234523554
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.138409811972824,
+        "outcome": 0.28724614164323303
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0310429045802374,
+        "outcome": 0.5697601022236464
+      }
+    ],
+    "2023-10-09": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 1.1812646897241328
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1586607087844118,
+        "outcome": 0.8324339131751576
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.4419432040517951,
+        "outcome": 0.32240189062773406
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.500337342750994,
+        "outcome": 1.1381796995665088
+      }
+    ],
+    "2023-10-16": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 1.763789682096239
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0136448482221018,
+        "outcome": 1.1936882102575268
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.6697794574564109,
+        "outcome": 0.28948160171585663
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.5261717555980951,
+        "outcome": 1.7773430072023293
+      }
+    ],
+    "2023-10-23": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": -0.6699642371699395
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1865957023635863,
+        "outcome": 0.6665543195348194
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0211275003249755,
+        "outcome": 0.33403008052050787
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0394887095118508,
+        "outcome": 0.753430081439048
+      }
+    ],
+    "2023-10-30": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.3518937398334603
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.3920441856590561,
+        "outcome": 0.7197195450677659
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.181559345545063,
+        "outcome": 0.4144755827697507
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2501729665361757,
+        "outcome": 0.724401064839955
+      }
+    ],
+    "2023-11-06": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": -0.7095462786934307
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0238079712051946,
+        "outcome": 0.7718759719055017
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0234284320470115,
+        "outcome": 0.36162826278717586
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2732147067016597,
+        "outcome": 0.3620722154638604
+      }
+    ],
+    "2023-11-13": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 0.21055050744198778
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1200057861954516,
+        "outcome": 0.3990742849684656
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0904090567290818,
+        "outcome": 0.3593342670853248
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0077330770109807,
+        "outcome": 0.361645731830469
+      }
+    ],
+    "2023-11-20": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 0.7277567483208472
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0606442960326554,
+        "outcome": 0.2654499696238416
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1038047339054923,
+        "outcome": 0.33974296424428235
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0436856239849415,
+        "outcome": 0.3752109698283386
+      }
+    ],
+    "2023-11-27": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 1.0681478863329512
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0807669088780878,
+        "outcome": 0.555718566702869
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.043853188965486,
+        "outcome": 0.33598068768117867
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2791168873697074,
+        "outcome": 0.2520171389924446
+      }
+    ],
+    "2023-12-04": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 3.2759059364033214
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.2353598048932507,
+        "outcome": 0.2806039129875979
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.307342864098051,
+        "outcome": 0.3774516496021023
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0003322926464713,
+        "outcome": 0.7489737543306346
+      }
+    ],
+    "2023-12-11": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 3.890789700962236
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0146520840229798,
+        "outcome": 1.1587005944471513
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2371174586949553,
+        "outcome": 0.31008898559242337
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.6839777373951341,
+        "outcome": 0.7706717807559417
+      }
+    ],
+    "2023-12-18": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 1.1826346135637706
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.4690139207967058,
+        "outcome": 0.7006120260342752
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1290958306941984,
+        "outcome": 0.4531301390288626
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.066667116682861,
+        "outcome": 0.5898337779986463
+      }
+    ],
+    "2023-12-25": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 3.0404403357626326
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.2558366225366592,
+        "outcome": 0.878139582668912
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0297758830600852,
+        "outcome": 0.4769382787700452
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.3408200746460605,
+        "outcome": 0.3150476635014419
+      }
+    ],
+    "2024-01-01": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 3.2628610803305635
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0059195009790167,
+        "outcome": 0.5813971334098239
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0141741505656729,
+        "outcome": 0.4031770000840969
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0947936619382524,
+        "outcome": 0.17347826178249226
+      }
+    ],
+    "2024-01-08": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 5.854363670763136
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0828889426345357,
+        "outcome": 0.6225696935567968
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1966285706004827,
+        "outcome": 0.39068675501874484
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2171564999408127,
+        "outcome": 0.4920319944729962
+      }
+    ],
+    "2024-01-15": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 4.330053987645814
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.028593490523904,
+        "outcome": 0.4916503311110586
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.4488259986916401,
+        "outcome": 0.34936995471815396
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1196142040020526,
+        "outcome": 1.1124614028023416
+      }
+    ],
+    "2024-01-22": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 4.794972825182874
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.2336352046841966,
+        "outcome": 0.648486891107304
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.3093123146804358,
+        "outcome": 0.37598929910035345
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2640436632371389,
+        "outcome": 1.0651296056345272
+      }
+    ],
+    "2024-01-29": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 7.490662985708008
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0528585333382235,
+        "outcome": 0.6444357773876198
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1756043218329933,
+        "outcome": 0.35096905241214704
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.211489349373119,
+        "outcome": 0.7890401191610156
+      }
+    ],
+    "2024-02-05": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 7.875233345923165
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0476317014338182,
+        "outcome": 0.5599066823096823
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0069327515669256,
+        "outcome": 0.3254091339141585
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1577160883696861,
+        "outcome": 0.34759997397106046
+      }
+    ],
+    "2024-02-12": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 8.24864300527183
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0597450456428237,
+        "outcome": 0.30495279971080913
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1313600661939023,
+        "outcome": 0.31543889399122943
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0164716671666143,
+        "outcome": 0.4358930877288701
+      }
+    ],
+    "2024-02-19": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 8.676373419726406
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.3331256055240509,
+        "outcome": 0.18784778001415967
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.5076013140018648,
+        "outcome": 0.4080028727853403
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0215478024244538,
+        "outcome": 1.2373039539755388
+      }
+    ],
+    "2024-02-26": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 5.9354420405204555
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.4549577532178273,
+        "outcome": 0.2638282170355523
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0577334703187071,
+        "outcome": 0.4994288095679217
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1081115060136639,
+        "outcome": 0.6120218603004538
+      }
+    ],
+    "2024-03-04": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 5.544997270315962
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1133681482618845,
+        "outcome": 0.21625897165596256
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2705296344567893,
+        "outcome": 0.46462809485867573
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0547139905759248,
+        "outcome": 0.835542080707111
+      }
+    ],
+    "2024-03-11": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 6.05929879453169
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0109262518198703,
+        "outcome": 0.4335476321201137
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0463627584091837,
+        "outcome": 0.3762369778586842
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2138686016788775,
+        "outcome": 0.4337167318024089
+      }
+    ],
+    "2024-03-18": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 5.817207255950163
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0923640472106456,
+        "outcome": 0.2396413582401403
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0879429743475794,
+        "outcome": 0.35185790825124746
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0156120229206845,
+        "outcome": 0.3777861215091332
+      }
+    ],
+    "2024-03-25": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 5.379195608581059
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.3294121015886244,
+        "outcome": 0.6984591405101733
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0050614539242553,
+        "outcome": 0.4372448592642143
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.3750939592269875,
+        "outcome": 0.18196647025636895
+      }
+    ],
+    "2024-04-01": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 5.04145611704941
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.5421573055105259,
+        "outcome": 0.37312392218538754
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1810459007033867,
+        "outcome": 0.5596230579242127
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0102776383815628,
+        "outcome": 0.4798743177227411
+      }
+    ],
+    "2024-04-08": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 5.015514982256068
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1019101197876855,
+        "outcome": 0.32592630387111815
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.5330881786679197,
+        "outcome": 0.5083007555418011
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0896999569702384,
+        "outcome": 1.312591838853089
+      }
+    ],
+    "2024-04-15": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 3.3001146969148865
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0285496786379314,
+        "outcome": 0.9796317459280108
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0401015435586996,
+        "outcome": 0.44019500939528566
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.5328592727137971,
+        "outcome": 0.5836416224057727
+      }
+    ],
+    "2024-04-22": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 3.2022742439170315
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0743795223939977,
+        "outcome": 0.8553226520488963
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0864717694437022,
+        "outcome": 0.4189997281452094
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2383818202669189,
+        "outcome": 0.43763304178221746
+      }
+    ],
+    "2024-04-29": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 5.250027540271906
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1850330105773362,
+        "outcome": 1.0640337447676043
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.6464014499663967,
+        "outcome": 0.4429205427005001
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.4142803022925061,
+        "outcome": 1.535579567810793
+      }
+    ],
+    "2024-05-06": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.282928404241479
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.111442085770475,
+        "outcome": 1.9441647575770347
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0069362302671251,
+        "outcome": 0.43303544052240556
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.9521285213797408,
+        "outcome": 0.6098241163278415
+      }
+    ],
+    "2024-05-13": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 4.2046485924924255
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1133055334152272,
+        "outcome": 1.9294128046553114
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1326029299225916,
+        "outcome": 0.40839238334225586
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.6450446920669232,
+        "outcome": 0.5510216440853547
+      }
+    ],
+    "2024-05-20": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 1.6643378917348925
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0678029792200358,
+        "outcome": 1.1913440543803937
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1766997563477289,
+        "outcome": 0.3593277440322865
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.142497075686587,
+        "outcome": 0.6027388853651757
+      }
+    ],
+    "2024-05-27": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 1.0737189483253464
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0052834357986416,
+        "outcome": 0.7369552599150321
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1582838724149658,
+        "outcome": 0.3192388924518509
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0930727544944843,
+        "outcome": 0.5750031222732098
+      }
+    ],
+    "2024-06-03": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.5858964157459003
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0490069212804822,
+        "outcome": 0.5401151868479115
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2546349861945977,
+        "outcome": 0.31399646873460735
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1132021261927187,
+        "outcome": 0.7610422273790255
+      }
+    ],
+    "2024-06-10": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 0.08590363149640763
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1066221986134989,
+        "outcome": 0.9908559378959845
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0530844117117436,
+        "outcome": 0.32494021754835634
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.4797905675770076,
+        "outcome": 0.4192474065182438
+      }
+    ],
+    "2024-06-17": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 1.9078510515139089
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0880924376070253,
+        "outcome": 0.615657714921564
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0722390151785364,
+        "outcome": 0.3030827161911307
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0797512842529565,
+        "outcome": 0.33478074626256255
+      }
+    ],
+    "2024-06-24": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 0.638778618837857
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.5153798077034579,
+        "outcome": 0.788391129640739
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0442211404951342,
+        "outcome": 0.42296791135598694
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.3112412497966222,
+        "outcome": 0.24518465065156322
+      }
+    ],
+    "2024-07-01": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.7668558579487526
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0732513701152457,
+        "outcome": 0.9989210464082445
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1912818397336923,
+        "outcome": 0.3753845485065285
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.4017591572042859,
+        "outcome": 0.5044534084688534
+      }
+    ],
+    "2024-07-08": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 0.47821796245760145
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1601325341448936,
+        "outcome": 0.6702836135594039
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0459420993384183,
+        "outcome": 0.3855492196259038
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1095934430990413,
+        "outcome": 0.29845699985756646
+      }
+    ],
+    "2024-07-15": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 0.5176293486927211
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0833231460306684,
+        "outcome": 0.6221972577268717
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0425874690358314,
+        "outcome": 0.3639690178524704
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1891464905765891,
+        "outcome": 0.2190541511267893
+      }
+    ],
+    "2024-07-22": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 0.9695349141012253
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0623395294052851,
+        "outcome": 0.7608869805919848
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2088002406515631,
+        "outcome": 0.33277810135757463
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2992075653843315,
+        "outcome": 0.5235620726204622
+      }
+    ],
+    "2024-07-29": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 1.0040120274328408
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.432045737958349,
+        "outcome": 1.0681998989931396
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0877844475187156,
+        "outcome": 0.4504000413014756
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.4456109290582952,
+        "outcome": 0.3948722223404278
+      }
+    ],
+    "2024-08-05": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 0.4597912791793794
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0436639170025426,
+        "outcome": 1.0110569828983862
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1615006238559652,
+        "outcome": 0.3941539653464575
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.3159013658506938,
+        "outcome": 0.49910458125453383
+      }
+    ],
+    "2024-08-12": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 0.17140998536149507
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.6194075455774745,
+        "outcome": 0.6395888652049297
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0808590559398105,
+        "outcome": 0.5584638932012869
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0753758446299442,
+        "outcome": 0.3815759121891047
+      }
+    ],
+    "2024-08-19": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 3.0929340881280067
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0738456378111048,
+        "outcome": 0.4222531332501068
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.5230161461535054,
+        "outcome": 0.49840338251151106
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0666136519713168,
+        "outcome": 1.2602405664274958
+      }
+    ],
+    "2024-08-26": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 3.3158114965736774
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0001219515855001,
+        "outcome": 0.6997232817195391
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1819222600190423,
+        "outcome": 0.4351186460851551
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.3180567125451653,
+        "outcome": 0.8592239096480644
+      }
+    ],
+    "2024-09-02": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 1.128406302405267
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0375876289060376,
+        "outcome": 0.4236732072789245
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0728038175118095,
+        "outcome": 0.40055247010030526
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0487232579677831,
+        "outcome": 0.5072755899595401
+      }
+    ],
+    "2024-09-09": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 3.481807482844436
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.3507104811996893,
+        "outcome": 0.2751138352606026
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2251584990805404,
+        "outcome": 0.4844221618545663
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0387933763948536,
+        "outcome": 0.7045647500550043
+      }
+    ],
+    "2024-09-16": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 1.1032346698350743
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.2163172152786784,
+        "outcome": 0.1920097178938077
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.3754049193477893,
+        "outcome": 0.46617970432159533
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0353805996177972,
+        "outcome": 1.0745990097638825
+      }
+    ],
+    "2024-09-23": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 0.7733588995850308
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.2224710497288249,
+        "outcome": 0.65575527006913
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0800189202815908,
+        "outcome": 0.48147347490949527
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.3603185160368451,
+        "outcome": 0.599610133566409
+      }
+    ],
+    "2024-09-30": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 3.015222758802463
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.271118610122846,
+        "outcome": 0.7049443185327182
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.3569195184120182,
+        "outcome": 0.5052003346917997
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2412120384531783,
+        "outcome": 1.017866632428208
+      }
+    ],
+    "2024-10-07": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 0.38377704188481043
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1146770487099684,
+        "outcome": 0.7406925173679685
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0939133852505445,
+        "outcome": 0.4762867513054463
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2509988374146217,
+        "outcome": 0.6072175520485831
+      }
+    ],
+    "2024-10-14": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.9169676335775554
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0481789547931668,
+        "outcome": 0.6078389297911779
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2618269227369851,
+        "outcome": 0.43728401052776666
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1546087148943337,
+        "outcome": 0.811983673530909
+      }
+    ],
+    "2024-10-21": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 0.7777356124946266
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0596766252428998,
+        "outcome": 0.6516415252744782
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.3230193324385746,
+        "outcome": 0.3880891891740312
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2289634494092756,
+        "outcome": 0.9975412425232305
+      }
+    ],
+    "2024-10-28": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 1.1500602476851967
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.2603379948714946,
+        "outcome": 1.0765330217648819
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0172908342404351,
+        "outcome": 0.4447038848848017
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.4886311343514452,
+        "outcome": 0.4460016168727455
+      }
+    ],
+    "2024-11-04": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.7044491052629542
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0333802633083837,
+        "outcome": 0.9119852017249136
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.299904265792848,
+        "outcome": 0.36066458116257516
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2506737727738451,
+        "outcome": 0.8208447517549733
+      }
+    ],
+    "2024-11-11": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 1.9856226143692373
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1577615989693111,
+        "outcome": 1.4042714907993508
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2318405337397545,
+        "outcome": 0.37915596248939487
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.6321843332692909,
+        "outcome": 0.8112453199737492
+      }
+    ],
+    "2024-11-18": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 3.9062121847578015
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0058367603399292,
+        "outcome": 0.8552880910421836
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2625406870329742,
+        "outcome": 0.34189788675451044
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0984771376847689,
+        "outcome": 0.8698418897447102
+      }
+    ],
+    "2024-11-25": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.5872532468324616
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0652323402383094,
+        "outcome": 0.9408758426678809
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.3323047600039446,
+        "outcome": 0.3363251670558612
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.340458939929695,
+        "outcome": 1.0351511619235618
+      }
+    ],
+    "2024-12-02": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.1170130824647093
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.3582656175549034,
+        "outcome": 0.5655889411200173
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0488005793352328,
+        "outcome": 0.41440572288147814
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0569771926960619,
+        "outcome": 0.5289024346008456
+      }
+    ],
+    "2024-12-09": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.5673670326570694
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.451567147841705,
+        "outcome": 1.1674765085918142
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1262413479263513,
+        "outcome": 0.5034388128923286
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.5724642192009824,
+        "outcome": 0.5107814703045428
+      }
+    ],
+    "2024-12-16": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 3.671113689603009
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1720090976030656,
+        "outcome": 0.7535982165313273
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2102166925758109,
+        "outcome": 0.47268839211511054
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1085806527010275,
+        "outcome": 0.6638213391865916
+      }
+    ],
+    "2024-12-23": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 3.2544563701226337
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.2321594292442804,
+        "outcome": 1.2152814021201548
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0034484685124575,
+        "outcome": 0.4717399176078546
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.5480901901282047,
+        "outcome": 0.2816982729919828
+      }
+    ],
+    "2024-12-30": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 4.661845863163991
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1522578375940417,
+        "outcome": 0.7256187103799693
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.020378630603643,
+        "outcome": 0.45550432955798265
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0738247100876091,
+        "outcome": 0.17840265605950406
+      }
+    ],
+    "2025-01-06": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 5.685348140789157
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0293638473147036,
+        "outcome": 1.0690079274829236
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2412110432877467,
+        "outcome": 0.408390256283584
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.4654559544410321,
+        "outcome": 0.5892220454946044
+      }
+    ],
+    "2025-01-13": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 7.772799011645365
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1604412693860316,
+        "outcome": 0.5441135325678867
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0615383242150032,
+        "outcome": 0.4224127699596659
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0029381206474143,
+        "outcome": 0.3611122139027514
+      }
+    ],
+    "2025-01-20": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 5.93328804284048
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0877935179804369,
+        "outcome": 0.34443325629980737
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2280191656896089,
+        "outcome": 0.3913620814032352
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0479310920790479,
+        "outcome": 0.628097518530154
+      }
+    ],
+    "2025-01-27": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 6.621825314254047
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1876140273016859,
+        "outcome": 0.4452503103629777
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.5836513824171207,
+        "outcome": 0.4190541908539378
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1767747583758193,
+        "outcome": 1.4556220488088971
+      }
+    ],
+    "2025-02-03": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 7.925366212367506
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.790734113865183,
+        "outcome": 0.6797459039021738
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.3661403721303436,
+        "outcome": 0.6255160431504951
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2845494520135299,
+        "outcome": 1.3641174637717206
+      }
+    ],
+    "2025-02-10": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 6.766739226870099
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1151947915541394,
+        "outcome": 0.5589727343599069
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.027439648560419,
+        "outcome": 0.564486276244699
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1400623346999502,
+        "outcome": 0.6101767143476934
+      }
+    ],
+    "2025-02-17": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 6.554348999329785
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.272870232902858,
+        "outcome": 1.0855011547898457
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2129461276168706,
+        "outcome": 0.5770885193717852
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.5145914443245859,
+        "outcome": 0.738232192556217
+      }
+    ],
+    "2025-02-24": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 8.819015095678052
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.133884097669489,
+        "outcome": 1.0327162432386727
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1236720289625926,
+        "outcome": 0.5280944759587526
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.3163228509162339,
+        "outcome": 0.5740583881648997
+      }
+    ],
+    "2025-03-03": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 8.085152923715714
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.4489343662462517,
+        "outcome": 0.6522704567771663
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0058990865642357,
+        "outcome": 0.5866041446711354
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0819180089351477,
+        "outcome": 0.2654192596885663
+      }
+    ],
+    "2025-03-10": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 7.374658707168916
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0225018192860057,
+        "outcome": 1.4874600823932371
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.8438980601181053,
+        "outcome": 0.5048361437473874
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.7603737706113222,
+        "outcome": 1.890992079563162
+      }
+    ],
+    "2025-03-17": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 10.216249112900826
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1453693040390505,
+        "outcome": 1.070053245481127
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.3091868622832244,
+        "outcome": 0.48598113952035654
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2079632536311745,
+        "outcome": 1.367763898266633
+      }
+    ],
+    "2025-03-24": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 6.941504811998105
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.2154520558071815,
+        "outcome": 0.5645475176321784
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1468172551388546,
+        "outcome": 0.49880871785311964
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0158785450498447,
+        "outcome": 0.8775115210043917
+      }
+    ],
+    "2025-03-31": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 5.779928970391002
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0761122393455865,
+        "outcome": 0.5482407845787172
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.4012750102287188,
+        "outcome": 0.46835756001348516
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1717835202609601,
+        "outcome": 1.2222446333786954
+      }
+    ],
+    "2025-04-07": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 6.192665057809119
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0248920082929571,
+        "outcome": 0.4584279594510898
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1499731737889097,
+        "outcome": 0.42240381082661005
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1203669798466135,
+        "outcome": 0.8101800095732432
+      }
+    ],
+    "2025-04-14": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 5.619049991992949
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0604432100144095,
+        "outcome": 0.2319913730925931
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.029309796742218,
+        "outcome": 0.40481053210690165
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0020668121099627,
+        "outcome": 0.41384538352407113
+      }
+    ],
+    "2025-04-21": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 4.6949615670986935
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.3196394795687508,
+        "outcome": 0.2317817375292817
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1227979266443027,
+        "outcome": 0.4736045360671274
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0736378980781526,
+        "outcome": 0.4592590690784429
+      }
+    ],
+    "2025-04-28": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 3.990224032464756
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.2082709100355024,
+        "outcome": 0.5103174630613252
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1038606060003672,
+        "outcome": 0.4383989634812966
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.256155966539,
+        "outcome": 0.4174187307545571
+      }
+    ],
+    "2025-05-05": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 4.005877176621042
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1760843833878694,
+        "outcome": 0.6177407958252814
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0427975216688742,
+        "outcome": 0.440007529385246
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2349696324426761,
+        "outcome": 0.27227268413216515
+      }
+    ],
+    "2025-05-12": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 3.509447053120713
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1202091634427128,
+        "outcome": 0.4746912892213873
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0281589567275638,
+        "outcome": 0.4120160920655107
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1085367878219423,
+        "outcome": 0.1833916923821012
+      }
+    ],
+    "2025-05-19": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.6368885911089537
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0553237035051095,
+        "outcome": 0.3171475740651017
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0854129862448504,
+        "outcome": 0.37735884561764876
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0528291259528137,
+        "outcome": 0.2634698670480579
+      }
+    ],
+    "2025-05-26": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 4.575090685561775
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.575080030499115,
+        "outcome": 0.39296799318965453
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0452006048511585,
+        "outcome": 0.5105221842668184
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1483183700274241,
+        "outcome": 0.21037898961248588
+      }
+    ],
+    "2025-06-02": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.4811312827859022
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0228969233417173,
+        "outcome": 0.2544614243905341
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.193419661801117,
+        "outcome": 0.4406998002525394
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0386304376394991,
+        "outcome": 0.49405966369969007
+      }
+    ],
+    "2025-06-09": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 4.04341265026679
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.4326386654426105,
+        "outcome": 0.9811221576037842
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0628951410769609,
+        "outcome": 0.528205441187661
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.5481354298772293,
+        "outcome": 0.3299581333349353
+      }
+    ],
+    "2025-06-16": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 1.9503232392286394
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1180075138636492,
+        "outcome": 1.0231838435607583
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0491524148574456,
+        "outcome": 0.48082402438717853
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.3468568555172551,
+        "outcome": 0.24280162270773498
+      }
+    ],
+    "2025-06-23": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 3.825668082396653
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1948264578396192,
+        "outcome": 0.9258277978323127
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2464803329654236,
+        "outcome": 0.4851759646827569
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2664128827218394,
+        "outcome": 0.6254661719267199
+      }
+    ],
+    "2025-06-30": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 0.9806989527921488
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.110423966569475,
+        "outcome": 0.5097232915162436
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0712443495411288,
+        "outcome": 0.4652249618201301
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0293274370555829,
+        "outcome": 0.3932008272469736
+      }
+    ],
+    "2025-07-07": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.0024938368357375
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0458155642476413,
+        "outcome": 0.4432723158191649
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.229689388879704,
+        "outcome": 0.4289448648924993
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1225926728333856,
+        "outcome": 0.6466757658106806
+      }
+    ],
+    "2025-07-14": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 4.196508291610111
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.2829708979394404,
+        "outcome": 0.417426701765653
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.3283367940573536,
+        "outcome": 0.46793955853407826
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1252505927794038,
+        "outcome": 0.9475587568581785
+      }
+    ],
+    "2025-07-21": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 1.3670897094898418
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0204939959867197,
+        "outcome": 0.504328118820812
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0646315209460798,
+        "outcome": 0.40722047726695537
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1934432655490116,
+        "outcome": 0.5058048265102084
+      }
+    ],
+    "2025-07-28": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 4.423400601768497
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.2766405454993401,
+        "outcome": 0.770095093038372
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0327124421683693,
+        "outcome": 0.4555635582777216
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.3345814096022121,
+        "outcome": 0.29292083642241384
+      }
+    ],
+    "2025-08-04": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 3.445355542811913
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0112473325364491,
+        "outcome": 0.5747416284125094
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1328487170939269,
+        "outcome": 0.3987704574938376
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1250328000056363,
+        "outcome": 0.4123178028947333
+      }
+    ],
+    "2025-08-11": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.316565033905834
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 1.0,
+        "outcome": 0.35560302471031013
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1871424165324744,
+        "outcome": 0.6837839304841379
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0347632398052971,
+        "outcome": 0.5888817046968844
+      }
+    ],
+    "2025-08-18": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.2608827844409554
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.279425305305591,
+        "outcome": 0.36716751874799547
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2714494938394697,
+        "outcome": 0.6264352428224755
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.119737630896681,
+        "outcome": 0.8223538779395323
+      }
+    ],
+    "2025-08-25": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.013780450952268
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0463134361843123,
+        "outcome": 0.2822826503466031
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2434476197314505,
+        "outcome": 0.5499609739754181
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0635620359763353,
+        "outcome": 0.8439099464042439
+      }
+    ],
+    "2025-09-01": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 1.824208299926962
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.5572071790160156,
+        "outcome": 0.5180376783711307
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.356829483709824,
+        "outcome": 0.6366868488856608
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2358131450963973,
+        "outcome": 1.116245452740481
+      }
+    ],
+    "2025-09-08": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 1.91927083595766
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.327836582674545,
+        "outcome": 1.1078118081392838
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0331301772261816,
+        "outcome": 0.6408889140022787
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.5372209766740697,
+        "outcome": 0.5224933360955136
+      }
+    ],
+    "2025-09-15": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.4298301534968196
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.039397759341412,
+        "outcome": 1.006306981529069
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0563752358863242,
+        "outcome": 0.5571522863063986
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2916876312748581,
+        "outcome": 0.356043847783196
+      }
+    ],
+    "2025-09-22": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 4.5210454783744
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1199356396208405,
+        "outcome": 0.7391844827577597
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2041322200028711,
+        "outcome": 0.5301686524675885
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1504559362849402,
+        "outcome": 0.5997553370528317
+      }
+    ],
+    "2025-09-29": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.139458387894278
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.2509988153756369,
+        "outcome": 0.6862944038712985
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1506364614636979,
+        "outcome": 0.5564334963288021
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2000574296775389,
+        "outcome": 0.5696125218784318
+      }
+    ],
+    "2025-10-06": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.21909824044814
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0069954999541159,
+        "outcome": 0.9919309444375474
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.4323364968639908,
+        "outcome": 0.4821820528661473
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.421532322534443,
+        "outcome": 1.1440813032554735
+      }
+    ],
+    "2025-10-13": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 4.612686820509145
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0427142050221552,
+        "outcome": 1.5428486523857279
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1466082381405234,
+        "outcome": 0.4545654320184673
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.6915749644070837,
+        "outcome": 0.7553831530475262
+      }
+    ],
+    "2025-10-20": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 4.1939236758019165
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0729318759076979,
+        "outcome": 1.7103566457504649
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2712299475991865,
+        "outcome": 0.42839703220480785
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.6267986078993681,
+        "outcome": 0.8850472580994916
+      }
+    ],
+    "2025-10-27": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 1.9812279745324433
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1018180573550039,
+        "outcome": 1.1210101235301706
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1753503407165525,
+        "outcome": 0.43135274930240924
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1646459351848901,
+        "outcome": 0.7309267720817288
+      }
+    ],
+    "2025-11-03": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.485101383281362
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.03532736514529,
+        "outcome": 2.0035628015188744
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0193071364903947,
+        "outcome": 0.338770867037581
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 1.0,
+        "outcome": 0.3433781655666152
+      }
+    ],
+    "2025-11-10": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.07484763006635
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.2508697956213031,
+        "outcome": 1.0845163624947558
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0526052741083648,
+        "outcome": 0.3847759895122565
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0321096116628801,
+        "outcome": 0.2734985469189197
+      }
+    ],
+    "2025-11-17": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.847370026682287
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.2872029818325587,
+        "outcome": 0.6015460769236032
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.4150770753356996,
+        "outcome": 0.44228694608040026
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0324186778187383,
+        "outcome": 0.9927547297597361
+      }
+    ],
+    "2025-11-24": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 5.472466866840472
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.005805863954224,
+        "outcome": 0.32729924301988544
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1055812329904804,
+        "outcome": 0.3448297733606044
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0203208197647088,
+        "outcome": 0.5947066363117498
+      }
+    ],
+    "2025-12-01": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 3.7113445733915253
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0526800793488072,
+        "outcome": 1.035318340551574
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0767717554931306,
+        "outcome": 0.3007602046166523
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.5852494714558785,
+        "outcome": 0.40798504369322836
+      }
+    ],
+    "2025-12-08": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 4.4524646094428935
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0780934985029552,
+        "outcome": 0.5626866707681875
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.3211558309985923,
+        "outcome": 0.29961632421612433
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0275884535571846,
+        "outcome": 0.8316433032656906
+      }
+    ],
+    "2025-12-15": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 5.15709724188707
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.075389799649803,
+        "outcome": 0.48868391768485875
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1156745447776644,
+        "outcome": 0.2903759544792919
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1381885449215004,
+        "outcome": 0.5647745786589726
+      }
+    ],
+    "2025-12-22": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 7.072304446909467
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0781580877866841,
+        "outcome": 0.28210744206226607
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0599786207560024,
+        "outcome": 0.27016782645422643
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0257794704014853,
+        "outcome": 0.36134738241575426
+      }
+    ],
+    "2025-12-29": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 8.20420643925645
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1426407748905766,
+        "outcome": 0.16206855762539546
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2439041659509774,
+        "outcome": 0.301402406078575
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0134460604231799,
+        "outcome": 0.6573204260319185
+      }
+    ],
+    "2026-01-05": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 8.536810559239461
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1238914816433378,
+        "outcome": 0.4891681152881086
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2173599853277335,
+        "outcome": 0.314229435658003
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2706022391768838,
+        "outcome": 0.7074231641329362
+      }
+    ],
+    "2026-01-12": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 6.905744316237564
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1120456449141958,
+        "outcome": 0.354825310528134
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.3480153529180981,
+        "outcome": 0.3177157881181571
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.072756262473801,
+        "outcome": 0.9938645438079593
+      }
+    ],
+    "2026-01-19": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 9.236656366612845
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1813697071273831,
+        "outcome": 1.0412301796307137
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.528827418507927,
+        "outcome": 0.3453577136551864
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.5741852712252433,
+        "outcome": 1.4684138670933997
+      }
+    ],
+    "2026-01-26": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 9.642947526147006
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.2128088109282798,
+        "outcome": 1.114260096752437
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0458647305035581,
+        "outcome": 0.38270158009739164
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.3904327539851142,
+        "outcome": 0.6836220784698854
+      }
+    ],
+    "2026-02-02": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 8.145591954129358
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.047006505979331,
+        "outcome": 0.8754480742341267
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1586647822886789,
+        "outcome": 0.33174462991852316
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.212747484705485,
+        "outcome": 0.6297962768069943
+      }
+    ],
+    "2026-02-09": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 9.299778037869178
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0788324334773913,
+        "outcome": 1.66883314739499
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0472464843952247,
+        "outcome": 0.3011565167279909
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.8454090318540275,
+        "outcome": 0.36812365366568045
+      }
+    ],
+    "2026-02-16": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 8.733239599667222
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0357166197591622,
+        "outcome": 1.2806987401936079
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.431960009470024,
+        "outcome": 0.2840583069107698
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2962922732455639,
+        "outcome": 1.0409782091188418
+      }
+    ],
+    "2026-02-23": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 9.070026026827177
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1451555947001818,
+        "outcome": 0.8811067558575244
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0245185189370233,
+        "outcome": 0.31209098971013344
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1549486311326666,
+        "outcome": 0.4636205375980976
+      }
+    ],
+    "2026-03-02": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 8.762177152766096
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1652572260712544,
+        "outcome": 0.45850044274779
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0823666784426067,
+        "outcome": 0.3371489080115262
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0090387563833403,
+        "outcome": 0.3808492671116641
+      }
+    ],
+    "2026-03-09": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 8.159509218091323
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1479496368881394,
+        "outcome": 0.783335477412388
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.172249043982113,
+        "outcome": 0.34938534205897465
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.3661916503152304,
+        "outcome": 0.5247072875466674
+      }
+    ],
+    "2026-03-16": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 8.024802652172275
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0375046780909673,
+        "outcome": 0.4191352586845413
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.3387584703514378,
+        "outcome": 0.3174274702285057
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0184013779911424,
+        "outcome": 0.9051997267253078
+      }
+    ],
+    "2026-03-23": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 7.977185067277851
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.128103707932654,
+        "outcome": 0.7000093514847787
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.5202472961144585,
+        "outcome": 0.3247842845197049
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.3251958959627349,
+        "outcome": 1.4087126010764517
+      }
+    ],
+    "2026-03-30": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 7.474071369348111
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0299240046393717,
+        "outcome": 1.0057636602464497
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0749189137236414,
+        "outcome": 0.2917452745958017
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.4415654056019512,
+        "outcome": 0.7045475609436559
+      }
+    ],
+    "2026-04-06": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 9.955569493135142
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.110720135808021,
+        "outcome": 1.077016720688046
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1109739494102722,
+        "outcome": 0.30005569781839075
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.384671478378045,
+        "outcome": 0.537045547224403
+      }
+    ],
+    "2026-04-13": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 6.695877574706582
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0425544772024391,
+        "outcome": 1.285402588835588
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.3344953955510678,
+        "outcome": 0.2704879605099182
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.5094576724563816,
+        "outcome": 0.9081933191821114
+      }
+    ],
+    "2026-04-20": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 6.007441503088815
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0693022548150789,
+        "outcome": 1.2589642659124873
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2217008240721592,
+        "outcome": 0.2534244571071808
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.4202441016909079,
+        "outcome": 0.8093700494771983
+      }
+    ],
+    "2026-04-27": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 8.130969025122793
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.057968327684506,
+        "outcome": 0.7621331531113871
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.4816793999283564,
+        "outcome": 0.24939698240966746
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0855142278493508,
+        "outcome": 1.2932793201686072
+      }
+    ],
+    "2026-05-04": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 5.109965232998613
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.0714341637572495,
+        "outcome": 0.8953968302075399
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0115141119479467,
+        "outcome": 0.24889049615066183
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.3478585275068666,
+        "outcome": 0.5409662532080484
+      }
+    ],
+    "2026-05-11": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 4.994931685038319
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.2202439995349002,
+        "outcome": 0.6001648119720779
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0652597243078068,
+        "outcome": 0.3127445861422915
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0967082936178953,
+        "outcome": 0.3868426756774932
+      }
+    ],
+    "2026-05-18": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 6.018932290879381
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1155180389369366,
+        "outcome": 0.6355924450575838
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1743271135731493,
+        "outcome": 0.3068892067130646
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2234438399215624,
+        "outcome": 0.5342920194090579
+      }
+    ],
+    "2026-05-25": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 5.611589112755905
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1368692374815253,
+        "outcome": 0.41224924618020375
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.1090438463315451,
+        "outcome": 0.3099405872175202
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.0621344250610468,
+        "outcome": 0.44716345776986594
+      }
+    ],
+    "2026-06-01": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 3.989643732349171
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.2517119121847807,
+        "outcome": 1.3135868546528318
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2389564310491726,
+        "outcome": 0.35787487159033093
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.7402642160330816,
+        "outcome": 0.6838428363740808
+      }
+    ],
+    "2026-06-08": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.883044004445029
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.2151032854205044,
+        "outcome": 0.8685419073262466
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.2228273552106393,
+        "outcome": 0.3880546700495659
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.1326258673972198,
+        "outcome": 0.737745983695416
+      }
+    ],
+    "2026-06-15": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 3.442570327813369
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.183029827890263,
+        "outcome": 1.8268576207717988
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 1.0,
+        "outcome": 0.39405783935185884
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.9429833609101478,
+        "outcome": 2.309157170706938
+      }
+    ],
+    "2026-06-22": [
+      {
+        "type": "baseline",
+        "name": "Baseline",
+        "spend": 0,
+        "outcome": 2.354255082228317
+      },
+      {
+        "type": "media",
+        "name": "TV",
+        "spend": 0.1602348859038434,
+        "outcome": 1.3473350738524632
+      },
+      {
+        "type": "media",
+        "name": "SEA",
+        "spend": 0.0505489183225788,
+        "outcome": 0.4006094054377571
+      },
+      {
+        "type": "media",
+        "name": "Social",
+        "spend": 0.2771590662576711,
+        "outcome": 1.0041106204836978
+      }
+    ]
+  },
+  "version": 2
+}
