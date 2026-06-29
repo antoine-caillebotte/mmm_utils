@@ -317,7 +317,7 @@ def plot_prior_vs_posterior(  # pylint: disable=too-many-locals
     *,
     ncol: int = 3,
     figsize=(12, 8),
-    seperately=False,
+    separately=False,
 ):  # pylint: disable=too-many-arguments
     """Plot prior and posterior distributions for a given variable and media.
 
@@ -332,10 +332,10 @@ def plot_prior_vs_posterior(  # pylint: disable=too-many-locals
         without a media coordinate (e.g. shared interaction priors), in which
         case a single distribution is plotted for the whole variable.
     ncol : int, optional
-        Number of columns for subplots when ``seperately`` is True.
+        Number of columns for subplots when ``separately`` is True.
     figsize : tuple[int, int], optional
         Figure size.
-    seperately : bool, optional
+    separately : bool, optional
         Whether to create one subplot per media component.
 
     Returns
@@ -425,7 +425,7 @@ def plot_prior_vs_posterior(  # pylint: disable=too-many-locals
         )
         ax.legend()
 
-    if seperately:
+    if separately:
         nrow = int(np.ceil(len(media_list) / ncol))
         fig, axes = plt.subplots(nrow, ncol, figsize=figsize)
 
