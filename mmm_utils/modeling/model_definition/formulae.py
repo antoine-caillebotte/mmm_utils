@@ -518,11 +518,6 @@ class Interaction:
         """
         coords: dict[str, list[str]] = {}
 
-        if self.media:
-            coords["media"] = sorted(self.media)
-        if self.controls:
-            coords["controls"] = sorted(self.controls)
-
         all_names = list(self.formulas.keys()) + self.media
         for term in sorted(self.get_all_interaction_terms()):
             seen_lhs: set[str] = set()
