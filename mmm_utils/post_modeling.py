@@ -450,12 +450,15 @@ def plot_seasonality(mmm, ax=None):
 
     target_scale = mmm.data.scale("y")
 
-    posterior_intercept = np.array([0.0])
+    posterior_intercept = xr.zeros_like(
+        mmm.idata.posterior.yearly_seasonality_contribution
+    )
     if "intercept" in mmm.idata.posterior.control_contribution.control:
         posterior_intercept = (
             mmm.idata.posterior.control_contribution.sel(control="intercept")
             * target_scale
         )
+
     posterior_season = (
         mmm.idata.posterior.yearly_seasonality_contribution
     ) * target_scale
@@ -473,7 +476,7 @@ def plot_seasonality(mmm, ax=None):
 
     sns.lineplot(
         x=date,
-        y=posterior_season_mean,
+        y=posterior_season_mean + posterior_intercept_mean,
         color="green",
         label="Seasonality + Intercept",
         ax=ax,
