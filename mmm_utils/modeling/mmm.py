@@ -248,6 +248,7 @@ class MMM:  # pylint: disable=too-many-instance-attributes
                 value=media_contribution.sum(dim="media"),
                 dims="date",
             )
+
             mu = total_media_contribution
 
             # === CONTROL ===
@@ -256,6 +257,7 @@ class MMM:  # pylint: disable=too-many-instance-attributes
                 value=x_c * beta_adjusted["control"],
                 dims=["date", "control"],
             )
+
             mu = mu + control_contribution.sum(dim="control")
 
             # === SEASONALITY ===
@@ -264,6 +266,7 @@ class MMM:  # pylint: disable=too-many-instance-attributes
                 value=ptx.math.dot(x_s, beta_adjusted["season"]),
                 dims="date",
             )
+
             mu = mu + yearly_seasonality
 
             # === LIKELIHOOD ===

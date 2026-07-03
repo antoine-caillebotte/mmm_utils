@@ -321,6 +321,9 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
             # XTensor broadcasting: ("date",) × ("media",) → ("date", "media")
             boost = boost + x_term * beta_per_media
 
+        if "date" not in boost.dims:
+            boost = boost.broadcast_like(x_m.isel(media=0))
+
         return {
             "media": (beta_media * boost).transpose("date", "media"),
             "season": beta_season,
