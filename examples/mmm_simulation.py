@@ -1,15 +1,16 @@
 import numpy as np
 
 import pandas as pd
-import xarray as xr
 
 from datetime import date
 
 from mmm_utils.modeling.utils import max_abs_scaler
-
+from mmm_utils.holidays import create_holiday_columns
 
 import matplotlib.pyplot as plt
 import seaborn as sns
+
+from typing import NamedTuple
 
 # pylint: skip-file
 
@@ -34,7 +35,74 @@ def saturation_np(x, lam):
     return (1 - np.exp(-lam * x)) / (1 + np.exp(-lam * x))
 
 
-def make_synthetic_data(n: int = 180, seed: int = 123):
+def umbrella_effect_df(df, boost_name, beta):
+    """Add umbrella effect to a media channel in the dataframe.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Dataframe with media channels.
+    boost_name : str
+        Name of the media channel to boost.
+    beta : float
+        Coefficient for the umbrella effect.
+
+    Returns
+    -------
+    pd.DataFrame
+        Dataframe with umbrella effect added.
+    """
+    x = df.copy()
+    if boost_name not in df.columns:
+        raise ValueError(f"{boost_name} not in dataframe columns")
+
+    print(f"adding umbrella effect for {boost_name} with beta={beta}")
+    boost = beta * df[boost_name]
+    for m in df.columns:
+        if m != boost_name:
+            print(
+                f"adding umbrella effect for {boost_name} on {m} equuivalent to {(boost / x[m]).mean() * 100:.1f}% of boost"
+            )
+            x[m] = boost * x[m]
+        else:
+            x[m] = 0
+
+    return x
+
+
+MMM_parameter = NamedTuple(
+    "MMM_parameter",
+    [
+        ("media", np.ndarray),
+        ("control", np.ndarray),
+        ("trend", float),
+        ("season", np.ndarray),
+        ("intercept", float),
+        ("sigma", float),
+        ("adstock_alpha", dict[str, float]),
+        ("adstock_theta", dict[str, float]),
+        ("saturation_lam", dict[str, float]),
+        ("umbrella", float),
+    ],
+)
+
+default_params = MMM_parameter(
+    media=np.array([1, 2, 3]),
+    control=np.array([-2, 2]),
+    trend=4.2,
+    season=2 * np.array([1, 1, 0.5, 0]),
+    intercept=10.0,
+    sigma=0.5,
+    adstock_alpha={"TV": 0.9, "Digital": 0.8},
+    adstock_theta={},  # {"TV": 0.0},
+    saturation_lam={"TV": 0.5, "SEA": 0.5, "Digital": 0.75},
+    umbrella=40.0,
+)
+
+
+def make_synthetic_data(
+    beta: MMM_parameter = default_params, n: int = 180, seed: int = 123
+):
     """Generate a synthetic dataset for MMM smoke tests.
 
     Parameters
@@ -50,8 +118,8 @@ def make_synthetic_data(n: int = 180, seed: int = 123):
         Dataset, media names, control names, and true parameter table.
     """
     rng = np.random.default_rng(seed)
-    media_names = ["TV", "SEA", "Social"]
-    control_names = ["price", "promo"]
+    media_names = ["TV", "SEA", "Digital"]
+    control_names = ["price", "school_holidays"]
 
     # date range
     max_date = pd.to_datetime(date.today())
@@ -59,138 +127,132 @@ def make_synthetic_data(n: int = 180, seed: int = 123):
 
     df = pd.DataFrame(
         data={"date": pd.date_range(start=min_date, end=max_date, freq="W-MON")}
-    ).assign(
-        year=lambda x: x["date"].dt.year,
-        month=lambda x: x["date"].dt.month,
-        dayofyear=lambda x: x["date"].dt.dayofyear,
     )
     n = len(df)
     # === controls ===
-    df["price"], _ = max_abs_scaler(rng.normal(10.0, 2.0, size=n))
-    df["promo"], _ = max_abs_scaler(rng.binomial(1, 0.3, size=n).astype(float))
+    df["price"] = rng.normal(10.0, 2.0, size=n)
+    df["promo"] = rng.binomial(1, 0.3, size=n).astype(float)
+    df = create_holiday_columns(df, "date")
+    df.drop(columns=["public_holidays"], inplace=True)
 
     # === media with adstock/saturation effects ===
-    for m in media_names:
-        df[m], _ = max_abs_scaler(rng.gamma(1.0, 1.0, size=n))
+    tv_burst = rng.choice([0, 1], size=n, p=[0.9, 0.1])
+    df["TV"] = tv_burst * rng.normal(100, 20, size=n)
+
+    df["SEA"] = rng.normal(50, 10, size=n) + rng.normal(0, 5, size=n)
+    df["SEA"] = df["SEA"].rolling(window=3, min_periods=1).mean()
+
+    digital_burst = rng.choice([0, 1], size=n, p=[0.8, 0.2])
+    df["Digital"] = digital_burst * rng.normal(60, 5, size=n)
+
+    for m in media_names + control_names:
+        df[m], _ = max_abs_scaler(df[m].to_numpy(dtype=float))
 
     media_raw = df[media_names]
-    media_raw["TV"] = saturation_np(
-        delayed_adstock_np(media_raw["TV"].to_numpy(dtype=float), d=0.99, theta=5),
-        lam=0.5,
-    )
-    media_raw["SEA"] = adstock_np(media_raw["SEA"].to_numpy(dtype=float), d=0.4)
-    media_raw["Social"] = saturation_np(
-        media_raw["Social"].to_numpy(dtype=float), lam=0.5
-    )
+
+    for m in media_names:
+        if m in beta.adstock_alpha:
+            if m in beta.adstock_theta:
+                media_raw[m] = delayed_adstock_np(
+                    media_raw[m].to_numpy(dtype=float),
+                    d=beta.adstock_alpha[m],
+                    theta=beta.adstock_theta[m],
+                )
+            else:
+                media_raw[m] = adstock_np(media_raw[m], d=beta.adstock_alpha[m])
+        if m in beta.saturation_lam:
+            media_raw[m] = saturation_np(media_raw[m], lam=beta.saturation_lam[m])
 
     # === build target with known parameters ===
-    beta_m = np.array([1, 2, 3])
-    beta_c = np.array([-2, 2])
-    beta_s = 2 * np.array([1, 1, 0.5, 0])
-    beta_t = 4.2
-    beta_i = 10.0
-    sigma = 2.0
-
     df["trend"] = np.linspace(start=0.0, stop=1, num=n)
 
     t = np.arange(len(df), dtype=np.float64)[:, None]
     season_features = np.column_stack(
         [
             f(2 * np.pi * k * t / (365.25 / 7))
-            for k in range(1, beta_s.shape[0] // 2 + 1)
+            for k in range(1, beta.season.shape[0] // 2 + 1)
             for f in (np.sin, np.cos)
         ]
     )
 
-    df["season"] = season_features @ beta_s
+    df["season"] = season_features @ beta.season
 
     df["y"], scale_y = (  # max_abs_scaler
-        beta_i
-        + media_raw[media_names].to_numpy(dtype=np.float64) @ beta_m
-        + df[control_names].to_numpy(dtype=np.float64) @ beta_c
-        + beta_t * df["trend"]
+        beta.intercept
+        + media_raw[media_names].to_numpy(dtype=np.float64) @ beta.media
+        + umbrella_effect_df(media_raw, "TV", beta=beta.umbrella).sum(axis=1)
+        + df[control_names].to_numpy(dtype=np.float64) @ beta.control
+        + beta.trend * df["trend"]
         + df["season"]
-        + rng.normal(0, sigma, n),
+        + rng.normal(0, beta.sigma, n),
         1,
     )
 
     true_contributions: dict[str, float] = {
-        "media": sum(media_raw[media_names].to_numpy(dtype=np.float64) @ beta_m),
-        "control": sum(df[control_names].to_numpy(dtype=np.float64) @ beta_c),
-        "trend": sum(beta_t * df["trend"]),
+        "media": sum(media_raw[media_names].to_numpy(dtype=np.float64) @ beta.media),
+        "control": sum(df[control_names].to_numpy(dtype=np.float64) @ beta.control),
+        "trend": sum(beta.trend * df["trend"]),
         "season": sum(df["season"]),
     }
     all_contributions_sum = sum(true_contributions.values())
     for k, v in true_contributions.items():
         true_contributions[k] = v / all_contributions_sum
 
-    # scale_y = scale_y[0]
-    seas_name = sum(
-        [[f"sin[{i}]", f"cos[{i}]"] for i in range(beta_s.shape[0] // 2)],
-        [],
-    )
-    parameter_names = [
-        "intercept",
-        *[f"beta_media[{m}]" for m in media_names],
-        *[f"beta_control[{c}]" for c in control_names],
-        "beta_control[trend]",
-        *seas_name,
-        "sigma",
-        "adstock_alpha[SEA]",
-        "adstock_alpha[TV]",
-        "adstock_theta[TV]",
-        "saturation_lam[TV]",
-        "saturation_lam[Social]",
-    ]
-
-    true_params_values = [
-        beta_i / scale_y,
-        *beta_m / scale_y,
-        *beta_c / scale_y,
-        beta_t / scale_y,
-        *beta_s / scale_y,
-        sigma / scale_y,
-        0.4,  # adstock alpha SEA
-        0.99,  # adstock alpha TV
-        2.0,  # adstock theta TV
-        0.5,  # saturation lam TV
-        0.5,  # saturation lam Social
-    ]
-
-    true_params = pd.DataFrame(
-        {"true": true_params_values, "parameter": parameter_names}
+    true_params = MMM_parameter(
+        media=beta.media / scale_y,
+        control=beta.control / scale_y,
+        trend=beta.trend / scale_y,
+        season=beta.season / scale_y,
+        intercept=beta.intercept / scale_y,
+        sigma=beta.sigma / scale_y,
+        adstock_alpha=beta.adstock_alpha,
+        adstock_theta=beta.adstock_theta,
+        saturation_lam=beta.saturation_lam,
+        umbrella=beta.umbrella,
     )
 
-    ds = xr.Dataset.from_dataframe(df.set_index("date"))
-    return ds, media_names, control_names, true_params, true_contributions
+    media_raw["date"] = df["date"]
+    return (
+        df,
+        media_names,
+        control_names,
+        true_params,
+        true_contributions,
+        media_raw,
+    )
 
 
-def plot_example(df, media_names, control_names):
-    fig, axes = plt.subplots(4, 1, figsize=(10, 8), sharex=True)
+def plot_example(df, media_names, control_names, df_transformed):
+    fig, axes = plt.subplots(5, 1, figsize=(10, 10), sharex=True)
 
     sns.lineplot(data=df, x="date", y="y", ax=axes[0], color="black", label="target")
     for m in media_names:
         sns.lineplot(data=df, x="date", y=m, ax=axes[1], label=m)
+
+    for m in media_names:
+        sns.lineplot(data=df_transformed, x="date", y=m, ax=axes[2], label=m)
+
     for c in control_names:
-        sns.lineplot(data=df, x="date", y=c, ax=axes[2], label=c)
+        sns.lineplot(data=df, x="date", y=c, ax=axes[3], label=c)
 
     sns.lineplot(
-        data=df, x="date", y="season", ax=axes[3], color="orange", label="seasonality"
+        data=df, x="date", y="season", ax=axes[4], color="orange", label="seasonality"
     )
-    sns.lineplot(data=df, x="date", y="trend", ax=axes[3], color="blue", label="trend")
+    sns.lineplot(data=df, x="date", y="trend", ax=axes[4], color="blue", label="trend")
+
     plt.tight_layout()
-    plt.show()
+    return fig
 
 
 if __name__ == "__main__":
-    ds, media_names, control_names, true_params, true_contributions = (
-        make_synthetic_data()
+    df, media_names, control_names, true_params, true_contributions, df_transformed = (
+        make_synthetic_data(n=52 * 6)
     )
 
     print(true_contributions)
-    df = ds.to_dataframe().reset_index()
 
-    plot_example(df, media_names, control_names)
+    plot_example(df, media_names, control_names, df_transformed)
+    plt.show()
 
     df.drop(columns=["trend", "season"], inplace=True)
     df.to_csv("synthetic_mm_data.csv", index=False, sep=";", decimal=".")
