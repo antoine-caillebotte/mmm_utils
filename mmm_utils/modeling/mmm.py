@@ -60,11 +60,25 @@ class MMMDataHandler:
             self.X_media,
             dims=("date", "media"),
             model=model,
+            "channel_data",
+            self.X_media,
+            dims=("date", "media"),
+            model=model,
         )
         x_c = pmd.Data(
             "control_data",
             self.X_control,
             dims=("date", "control"),
+            model=model,
+            "control_data",
+            self.X_control,
+            dims=("date", "control"),
+            model=model,
+        )
+        x_s = pmd.Data(
+            "season_data",
+            self.season,
+            dims=("date", "season"),
             model=model,
         )
         x_s = pmd.Data(
