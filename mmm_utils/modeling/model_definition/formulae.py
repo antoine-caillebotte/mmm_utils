@@ -39,8 +39,6 @@ class InteractionFormula:
     terms : list[str]
         Parsed interaction variable names (i.e., every token that is **not**
         ``"1"``).
-    has_baseline : bool
-        ``True`` when ``"1"`` is present in the formula.
 
     Raises
     ------
@@ -51,17 +49,16 @@ class InteractionFormula:
     media_name: str
     raw: str
     terms: list[str] = field(init=False)
-    has_baseline: bool = field(init=False)
 
     def __post_init__(self) -> None:
-        self.terms, self.has_baseline = self._parse(self.raw)
+        self.terms = self._parse(self.raw)
 
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _parse(formula: str) -> tuple[list[str], bool]:
+    def _parse(formula: str) -> list[str]:
         """Parse the formula string into a list of interaction variable names.
 
         Parameters
@@ -71,10 +68,8 @@ class InteractionFormula:
 
         Returns
         -------
-        tuple[list[str], bool]
-            A 2-tuple ``(terms, has_baseline)`` where *terms* is the list
-            of non-``"1"`` identifier tokens and *has_baseline* is ``True``
-            when ``"1"`` appears in the formula.
+        list[str]
+            A list of non-``"1"`` identifier tokens.
 
         Raises
         ------
@@ -88,17 +83,21 @@ class InteractionFormula:
         for tok in tokens:
             if tok == "1":
                 has_baseline = True
-            elif tok == "0":
-                pass  # explicit "no baseline" marker
             elif _TERM_RE.match(tok):
                 terms.append(tok)
             else:
                 raise ValueError(
                     f"Invalid token '{tok}' in formula '{formula}'. "
-                    "Each term must be '1', '0', or a valid Python identifier."
+                    "Each term must be '1' or a valid Python identifier."
                 )
 
-        return terms, has_baseline
+        if not has_baseline:
+            raise ValueError(
+                f"Formula '{formula}' has no baseline. "
+                "It must contain '1' or reference at least one other media channel."
+            )
+
+        return terms
 
     # ------------------------------------------------------------------
     # Public helpers
@@ -112,7 +111,7 @@ class InteractionFormula:
         bool
             ``True`` when there are no interaction terms beyond the baseline.
         """
-        return self.has_baseline and len(self.terms) == 0
+        return len(self.terms) == 0
 
 
 @dataclass
@@ -196,7 +195,6 @@ class Interaction:
             for name, raw in self.formulas.items()
         }
         self._validate_all_terms_defined()
-        self._validate_media_has_baseline()
         self._validate()
 
     # ------------------------------------------------------------------
@@ -254,32 +252,6 @@ class Interaction:
                         f"Formula for '{formula.media_name}' references undefined "
                         f"variable '{term}'. Add it to `formulas`, `media`, or `controls`."
                     )
-
-    def _validate_media_has_baseline(self) -> None:
-        """Check that every media channel's formula provides a baseline.
-
-        A media channel has a valid baseline when its formula either contains
-        the literal ``1`` (``has_baseline=True``) or references at least one
-        other media channel as a term.
-
-        Raises
-        ------
-        ValueError
-            If a media channel has no baseline and no media-channel term.
-        """
-        if not self.media:
-            return
-        for media_name in self.media:
-            formula = self.parse_formula(media_name)
-            if formula.has_baseline:
-                continue
-            if any(term in self.media for term in formula.terms):
-                continue
-            raise ValueError(
-                f"Media channel '{media_name}' has no baseline. "
-                f"Its formula '{formula.raw}' must contain '1' or reference "
-                "at least one other media channel."
-            )
 
     # ------------------------------------------------------------------
     # Public API
