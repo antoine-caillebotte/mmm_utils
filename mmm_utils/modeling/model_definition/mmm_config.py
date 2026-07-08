@@ -180,6 +180,32 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
                     "default prior will be used"
                 )
 
+    def __post_init__(self):
+        if self.seasonality_order < 0:
+            raise ValueError("seasonality_order must be non-negative")
+
+        if not isinstance(self.media_transforms, dict):
+            raise TypeError("media_transforms must be a dict[str, MediaTransformSpec]")
+
+        for name, spec in self.media_transforms.items():
+            if not isinstance(spec, MediaTransformSpec):
+                raise TypeError(
+                    f"media_transforms[{name}] must be a MediaTransformSpec"
+                )
+            if name not in self.media_names:
+                raise ValueError(
+                    f"media_transforms contains a spec for '{name}', "
+                    "but that channel is not in media_names"
+                )
+
+        for name in self.media_names:
+            if name not in self.media_transforms:
+                warnings.warn(
+                    f"media_names contains '{name}', but no MediaTransformSpec, "
+                    "default prior will be used"
+                )
+
+    @property
     def var_names(self) -> list[str]:
         """List all variable names in the model, including media and control parameters.
 
@@ -243,3 +269,35 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
             "sigma",
             *self.beta_priors.interaction.get_unique_parameter_names(),
         ]
+
+    @property
+    def var_to_sample(self):
+        """List of variables to sample in the model.
+
+        Returns
+        -------
+        list[str]
+            List of variables to sample in the model.
+        """
+        return (
+            [
+                "y",
+                "media_contribution",
+                "control_contribution",
+                "yearly_seasonality_contribution",
+                "beta_media_adjusted",
+            ]
+            + list(self.beta_priors.interaction.get_unique_parameter_names())
+            + self.var_names
+        )
+
+    @property
+    def expressions_to_compute(self):
+        """List of expressions to compute after sampling.
+
+        Returns
+        -------
+        list[str]
+            List of expressions to compute after sampling.
+        """
+        return self.beta_priors.expressions_to_compute + ["total_media_contribution"]

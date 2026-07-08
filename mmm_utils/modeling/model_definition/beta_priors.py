@@ -7,8 +7,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import numpy as np
-import pytensor.xtensor as ptx
+
 from pytensor.xtensor.type import as_xtensor
+import pytensor.xtensor as ptx
+import pymc.dims as pmd
 
 from .formulae import Interaction
 from ..prior import PriorSpec, _make_prior
@@ -103,6 +105,9 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
     )
 
     is_well_specified: bool = field(init=False, repr=True, compare=False)
+    expressions_to_compute: list[str] = field(
+        init=False, repr=False, compare=False, default_factory=list
+    )
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -255,6 +260,11 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
               (unchanged).
             * **beta_control** — control coefficients, dim ``"control"``
               (unchanged).
+            * **interaction_contributions** — dims ``("date", "media")``,
+              same shape as ``media_contribution``. Column *m* holds the
+              total contribution of using *m* as an interaction term (i.e.
+              ``sum_media(x_m * beta_permedia)`` across every channel *m*
+              moderates), or 0 if *m* is never used as a moderator.
 
         Raises
         ------
@@ -280,21 +290,21 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
         media_idx = {m: i for i, m in enumerate(media_names)}
         ctrl_idx = {c: i for i, c in enumerate(control_names)}
 
-        # Baseline per channel as a constant xtensor vector
-        boost = as_xtensor(
-            np.array(
-                [
-                    float(self.interaction.parse_formula(m).has_baseline)
-                    for m in media_names
-                ]
-            ),
-            dims=("media",),
-        )
+        # Starting with the baseline media betas, then add interaction contributions term by term
+        boost = beta_media
+
+        interaction_terms = sorted(self.interaction.get_all_interaction_terms())
+        # Per-term totals: term_totals[term] is, for each date, the sum
+        # across every media channel `term` moderates of
+        # x_term * beta_permedia (e.g. TV moderates SEA and Digital → the
+        # 3-column matrix x_TV * beta_permedia has TV's own column at 0,
+        # and summing across media gives TV's total interaction contribution).
+        term_totals = {}
 
         # Iterate over distinct interaction terms, not over media channels.
         # For N media with T terms each, the original loop ran N×T isel-scalar ops.
         # Here we run T gather ops, one per distinct term regardless of N.
-        for term in sorted(self.interaction.get_all_interaction_terms()):
+        for term in interaction_terms:
             param_vector = self.pymc_priors[f"beta_interaction_{term}"]
 
             if term in self.interaction.media:
@@ -319,13 +329,34 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
             )
 
             # XTensor broadcasting: ("date",) × ("media",) → ("date", "media")
-            boost = boost + x_term * beta_per_media
+            interaction_contribution = x_term * beta_per_media
+
+            boost = boost + interaction_contribution
+            term_totals[term] = interaction_contribution.sum(dim="media")
 
         if "date" not in boost.dims:
             boost = boost.broadcast_like(x_m.isel(media=0))
 
+        # One column per media channel, same "media" dim/coords as
+        # `media_contribution`: `term_totals[m]` when `m` is itself used as
+        # an interaction term (moderates other channels), else 0.
+        zero_column = ptx.zeros_like(x_m.isel(media=0))
+        interaction_contributions = pmd.Deterministic(
+            "interaction_contributions",
+            ptx.concat(
+                [
+                    term_totals.get(m, zero_column).expand_dims(dim="media")
+                    for m in media_names
+                ],
+                dim="media",
+            ),
+            dims=("date", "media"),
+        )
+        self.expressions_to_compute.append("interaction_contributions")
+
         return {
-            "media": (beta_media * boost).transpose("date", "media"),
+            "media": boost.transpose("date", "media"),
             "season": beta_season,
             "control": beta_control,
+            "interaction_contributions": interaction_contributions,
         }
