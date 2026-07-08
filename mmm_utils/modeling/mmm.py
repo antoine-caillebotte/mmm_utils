@@ -51,12 +51,23 @@ class MMMDataHandler:
         """
 
         x_m = pmd.Data(
-            "channel_data", self.X_media, dims=("date", "media"), model=model
+            "channel_data",
+            self.X_media,
+            dims=("date", "media"),
+            model=model,
         )
         x_c = pmd.Data(
-            "control_data", self.X_control, dims=("date", "control"), model=model
+            "control_data",
+            self.X_control,
+            dims=("date", "control"),
+            model=model,
         )
-        x_s = pmd.Data("season_data", self.season, dims=("date", "season"), model=model)
+        x_s = pmd.Data(
+            "season_data",
+            self.season,
+            dims=("date", "season"),
+            model=model,
+        )
         y_o = pmd.Data("y_obs", self.y, dims="date", model=model)
 
         return x_m, x_c, x_s, y_o
@@ -101,29 +112,23 @@ class MMMDataHandler:
             Whether to rescale media, controls, and target by their max absolute value.
         """
 
-        x_media = X[config.media_names].to_numpy(dtype=np.float64)  # pylint: disable=invalid-name
-        x_control = X[config.control_names].to_numpy(dtype=np.float64)  # pylint: disable=invalid-name
+        x_media = X[config.media_names]
+        x_control = X[config.control_names]
 
         if rescale:
-            self.X_media, self._scales["media"] = max_abs_scaler(
-                np.asarray(x_media, dtype=np.float64)
-            )
-            self._scales["media"] = dict(zip(config.media_names, self._scales["media"]))
+            self.X_media, self._scales["media"] = max_abs_scaler(x_media)
+            self._scales["media"] = self._scales["media"].to_dict()
 
-            self.X_control, self._scales["control"] = max_abs_scaler(
-                np.asarray(x_control, dtype=np.float64)
-            )
-            self._scales["control"] = dict(
-                zip(config.control_names, self._scales["control"])
-            )
+            self.X_control, self._scales["control"] = max_abs_scaler(x_control)
+            self._scales["control"] = self._scales["control"].to_dict()
 
-            self.y, self._scales["y"] = max_abs_scaler(np.asarray(y, dtype=np.float64))
+            self.y, self._scales["y"] = max_abs_scaler(y)
             self._scales["y"] = float(self._scales["y"][0])
 
         else:
-            self.X_media = np.asarray(x_media, dtype=np.float64)
-            self.X_control = np.asarray(x_control, dtype=np.float64)
-            self.y = np.asarray(y, dtype=np.float64)
+            self.X_media = x_media
+            self.X_control = x_control
+            self.y = y
             self._scales = {"media": 1, "control": 1, "y": 1}
 
         self.date = X[config.date_name].to_numpy()
