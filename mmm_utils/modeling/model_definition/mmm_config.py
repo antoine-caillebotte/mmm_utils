@@ -154,6 +154,7 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
         default_factory=lambda: PriorSpec("HalfNormal", {"sigma": 1.0})
     )
 
+    @property
     def var_names(self) -> list[str]:
         """List all variable names in the model, including media and control parameters.
 
@@ -217,3 +218,35 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
             "sigma",
             *self.beta_priors.interaction.get_unique_parameter_names(),
         ]
+
+    @property
+    def var_to_sample(self):
+        """List of variables to sample in the model.
+
+        Returns
+        -------
+        list[str]
+            List of variables to sample in the model.
+        """
+        return (
+            [
+                "y",
+                "media_contribution",
+                "control_contribution",
+                "yearly_seasonality_contribution",
+                "beta_media_adjusted",
+            ]
+            + list(self.beta_priors.interaction.get_unique_parameter_names())
+            + self.var_names
+        )
+
+    @property
+    def expressions_to_compute(self):
+        """List of expressions to compute after sampling.
+
+        Returns
+        -------
+        list[str]
+            List of expressions to compute after sampling.
+        """
+        return self.beta_priors.expressions_to_compute + ["total_media_contribution"]
