@@ -17,5 +17,5 @@ work_*
 .claude/
 .coverage
 
-
+*.csv
 *.env
