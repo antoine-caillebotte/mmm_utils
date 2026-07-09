@@ -12,7 +12,11 @@ from .plot import (
     plot_media_costs,
 )
 
-# from .optimize import get_recommended_budget
+from .optimize import (
+    get_recommended_budget,
+    get_current_budget,
+    print_optimization_results,
+)
 
 from .timeline import Timeline
 
