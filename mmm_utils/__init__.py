@@ -15,3 +15,5 @@ from .plot import (
 # from .optimize import get_recommended_budget
 
 from .timeline import Timeline
+
+from .utils import MixMediaDataCreator, compute_spend_distribution
