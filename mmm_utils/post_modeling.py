@@ -385,7 +385,9 @@ def plot_residuals(mmm, ax=None):
     ax : matplotlib.axes.Axes
         Axes containing the residuals plot.
     """
-    if ax is None:
+
+    ax_created = ax is None
+    if ax_created:
         data_logger.clear()
 
     if ax is None:
@@ -396,6 +398,7 @@ def plot_residuals(mmm, ax=None):
     observed_y = mmm.idata.observed_data.y * target_scale
 
     residuals = observed_y - posterior_predictive_y.mean(dim=["chain", "draw"])
+    residuals_pct = xr.where(observed_y != 0, (residuals / observed_y) * 100, np.nan)
     date = mmm.idata.posterior_predictive.date
 
     data_logger.record(
@@ -405,20 +408,21 @@ def plot_residuals(mmm, ax=None):
             posterior_predictive_y.mean(dim=["chain", "draw"]).values
         ),
         residuals=np.asarray(residuals.values),
+        residuals_pct=np.asarray(residuals_pct.values),
     )
 
     ax.bar(
         date,
-        residuals,
+        residuals_pct,
         width=pd.Timedelta(days=5),
         color=["#16A34A" if r >= 0 else "#DC2626" for r in residuals],
         alpha=0.7,
     )
 
     ax.axhline(0, color="black", linestyle="--", linewidth=1)
-    ax.set_ylabel("Residuals")
+    ax.set_ylabel("Residuals Error (%)")
 
-    if ax is None:
+    if ax_created:
         data_logger.flush_to_csv("residuals_plot.csv")
 
     return ax.figure, ax
@@ -442,10 +446,11 @@ def plot_seasonality(mmm, ax=None):
     ax : matplotlib.axes.Axes
         Axes containing the seasonality contribution plot.
     """
-    if ax is None:
+    ax_created = ax is None
+    if ax_created:
         data_logger.clear()
 
-    if ax is None:
+    if ax_created:
         _, ax = plt.subplots(figsize=(10, 4))
 
     target_scale = mmm.data.scale("y")
@@ -482,7 +487,7 @@ def plot_seasonality(mmm, ax=None):
         ax=ax,
     )
 
-    if ax is None:
+    if ax_created:
         data_logger.flush_to_csv("seasonality_plot.csv")
 
     return ax.figure, ax
