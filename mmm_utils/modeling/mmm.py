@@ -5,8 +5,12 @@ with adstock and saturation transformations."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
+import tempfile
 import warnings
+import zipfile
 
+import cloudpickle
 import numpy as np
 import pandas as pd
 import arviz as az
@@ -317,6 +321,68 @@ class MMM:  # pylint: disable=too-many-instance-attributes
                     f"Divergences detected in sampling: {n_diverging}!"
                     " Consider increasing target_accept or reparameterizing."
                 )
+
+    def save(self, path: str | Path) -> None:
+        """Persist the full MMM object to a single file.
+
+        The posterior ``idata`` is stored via Arviz's netCDF format (the
+        robust, long-term storage format for :class:`arviz.InferenceData`),
+        while everything else (config, PyMC model graph, processed data,
+        adstocks, saturations) is serialized with ``cloudpickle``, which —
+        unlike the stdlib ``pickle`` — can also handle the closures and
+        PyTensor graph objects held by the model. Both parts are bundled
+        into one zip archive so a fitted model can be reloaded intact.
+
+        Parameters
+        ----------
+        path : str | Path
+            Destination file path (created or overwritten).
+        """
+        state = {k: v for k, v in self.__dict__.items() if k != "idata"}
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_dir = Path(tmp_dir)
+            state_path = tmp_dir / "state.pkl"
+            with open(state_path, "wb") as f:
+                cloudpickle.dump(state, f)
+
+            with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
+                zf.write(state_path, "state.pkl")
+                if self.idata is not None:
+                    idata_path = tmp_dir / "idata.nc"
+                    self.idata.to_netcdf(idata_path)
+                    zf.write(idata_path, "idata.nc")
+
+    @classmethod
+    def load(cls, path: str | Path) -> "MMM":
+        """Reload an MMM object previously saved with :meth:`save`.
+
+        Parameters
+        ----------
+        path : str | Path
+            Path to the file written by :meth:`save`.
+
+        Returns
+        -------
+        MMM
+            The restored object, including the fitted model, data, and
+            posterior samples (if the model had been fit).
+        """
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_dir = Path(tmp_dir)
+            with zipfile.ZipFile(path) as zf:
+                zf.extractall(tmp_dir)
+
+            with open(tmp_dir / "state.pkl", "rb") as f:
+                state = cloudpickle.load(f)
+
+            obj = cls(state["config"])
+            obj.__dict__.update(state)
+
+            idata_path = tmp_dir / "idata.nc"
+            obj.idata = az.from_netcdf(idata_path) if idata_path.exists() else None
+
+        return obj
 
     def sample_posterior_predictive(self, samples: int = 1000) -> None:
         """Sample posterior predictive distribution.
