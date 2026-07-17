@@ -52,11 +52,12 @@ def compute_spend_distribution(df, significance_threshold: float = 0.05):
         return "⚠️"
 
     summary["decision"] = summary["proportion"].apply(_make_decision)
+    summary["proportion"] = summary["proportion"] * 100
 
     out = (
         summary.sort_values("depenses", ascending=False)
         .reset_index(drop=True)
-        .round({"proportion": 4})
+        .round({"proportion": 2})
     )
     print(out)
     print()
@@ -376,11 +377,11 @@ class LeLabDataBase:
         Returns
         -------
         list[dict]
-            Matching documents sorted in descending order of ``date``.
+            Matching documents sorted in descending order of ``created_at``.
         """
         all_doc = list(self._db.find({"code_module": code_module}))
 
-        all_doc.sort(key=lambda x: x["date"], reverse=True)
+        all_doc.sort(key=lambda x: x["created_at"], reverse=True)
         return all_doc
 
     def print_all_documents(self, code_module: str):
@@ -397,7 +398,7 @@ class LeLabDataBase:
             return
 
         for doc in all_doc:
-            print(f"Document ID: {doc['_id']}, Date: {doc['date']}")
+            print(f"Document ID: {doc['_id']}, Date: {doc['created_at']}")
 
     def delete_documents(self, code_module: str):
         """Delete all documents for a module after interactive confirmation.
@@ -419,14 +420,16 @@ class LeLabDataBase:
 
         while old_one:
             ask = input(
-                f"⚠️ Are you sure you want to delete {code_module} (dated {old_one['date']})?"
+                f"⚠️ Are you sure you want to delete {code_module} (dated {old_one['created_at']})?"
                 " Press Enter to continue..."
             )
             if ask != "":
                 raise ValueError("Delete cancelled by user ❌")
 
             self._db.delete_one({"code_module": code_module, "date": old_one["date"]})
-            print(f"{code_module} (dated {old_one['date']}) deleted successfully 🗑️")
+            print(
+                f"{code_module} (dated {old_one['created_at']}) deleted successfully 🗑️"
+            )
             old_one = self._db.find_one({"code_module": code_module})
 
     def insert(self, doc: dict):
@@ -441,7 +444,7 @@ class LeLabDataBase:
         code_module = doc["code_module"]
 
         self._db.insert_one(doc)
-        print(f"{code_module} (dated {doc['date']}) inserted successfully ✅")
+        print(f"{code_module} (dated {doc['created_at']}) inserted successfully ✅")
 
     def update(self, doc: dict):
         """Update the most recent document for a module after confirmation.
@@ -464,11 +467,11 @@ class LeLabDataBase:
 
         old_one = all_doc[0]
         ask = input(
-            f"⚠️ Are you sure you want to update {code_module} (dated {old_one['date']})?"
+            f"⚠️ Are you sure you want to update {code_module} (dated {old_one['created_at']})?"
             " Press Enter to continue..."
         )
         if ask != "":
             raise ValueError("Update cancelled by user ❌")
 
         self._db.update_one({"_id": old_one["_id"]}, {"$set": doc})
-        print(f"{code_module} (dated {doc['date']}) updated successfully ✅")
+        print(f"{code_module} (dated {doc['created_at']}) updated successfully ✅")
