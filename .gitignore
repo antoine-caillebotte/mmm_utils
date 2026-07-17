@@ -14,6 +14,8 @@ work_*
 # IDEs and OS
 .vscode/
 .github/
+.claude/
+.coverage
 
 
 *.env
