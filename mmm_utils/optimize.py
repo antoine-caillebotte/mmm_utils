@@ -211,7 +211,7 @@ def get_recommended_budget(  # pylint: disable=too-many-arguments
         raise RuntimeError(f"Optimization failed: {res_scipy.message}")
 
     recommended_budget = {
-        m: float(optimized_budget[0, i] * media_scales[m]) for i, m in enumerate(media)
+        m: optimized_budget[:, i] * media_scales[m] for i, m in enumerate(media)
     }
 
     if verbatim:
