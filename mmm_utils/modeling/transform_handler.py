@@ -129,6 +129,7 @@ class TransformHandler:
         """
         x_m = as_xtensor(x_m.values, dims=("date", "media"))
         x_adstocked = self._apply_adstock_phase(x_m)
+        # pmd.Deterministic("media_adstocked", value=x_adstocked, dims=("date", "media"))
         x_result = self._apply_saturation_phase(x_adstocked)
         return x_result.transpose("date", "media")
 
@@ -142,30 +143,32 @@ class TransformHandler:
         adstock_groups = _compute_adstock_groups(
             self.media_names, self.media_transforms
         )
-        single_group = len(adstock_groups) == 1
+        # single_group = len(adstock_groups) == 1
+        # print(adstock_groups)
 
-        if single_group:
-            group_names = adstock_groups[0]
-            specs = self._specs_for(group_names)
-            spec_ref = specs[group_names[0]]
-            l_max = self._resolve_lmax(group_names, specs)
+        # if single_group:
+        #     group_names = adstock_groups[0]
+        #     specs = self._specs_for(group_names)
+        #     spec_ref = specs[group_names[0]]
+        #     l_max = self._resolve_lmax(group_names, specs)
+        #     print("spec_ref.adstock_params", spec_ref.adstock_params)
+        #     params = self._build_vectorized_params(
+        #         spec_ref.adstock_params,
+        #         spec_ref.adstock_priors,
+        #         specs,
+        #         "adstock",
+        #         "",
+        #         "media",
+        #     )
+        #     ad = self._make_adstock(spec_ref, params, l_max)
+        #     print(params)
+        #     x_adstocked = ad(x_m)
 
-            params = self._build_vectorized_params(
-                spec_ref.adstock_params,
-                spec_ref.adstock_priors,
-                specs,
-                "adstock",
-                "",
-                "media",
-            )
-            ad = self._make_adstock(spec_ref, params, l_max)
-            x_adstocked = ad(x_m)
-
-            for j, name in enumerate(group_names):
-                self.adstocks[name] = self._make_adstock(
-                    spec_ref, _slice_params(params, "media", j), l_max
-                )
-            return x_adstocked.transpose("date", "media")
+        #     for j, name in enumerate(group_names):
+        #         self.adstocks[name] = self._make_adstock(
+        #             spec_ref, _slice_params(params, "media", j), l_max
+        #         )
+        #     return x_adstocked.transpose("date", "media")
 
         col_map: dict[str, XTensorVariable] = {}
         for grp_idx, group_names in enumerate(adstock_groups):
@@ -185,6 +188,7 @@ class TransformHandler:
                     f"[{name}]",
                 )
                 ad = self._make_adstock(spec_ref, params, l_max)
+                print(params)
                 col_map[name] = ad(col)
                 self.adstocks[name] = ad
             else:
@@ -202,6 +206,7 @@ class TransformHandler:
                     grp_dim,
                 )
                 ad = self._make_adstock(spec_ref, params, l_max)
+                print(params)
                 x_grp_ad = ad(x_grp)
 
                 for j, name in enumerate(group_names):
@@ -350,9 +355,30 @@ class TransformHandler:
         Hyperparameters are gathered from every channel and stacked into
         ``np.ndarray`` vectors, so a single ``pm.Distribution`` of shape
         ``(n_channels,)`` covers all channels with per-element hyperparams.
+
+        Fixed (non-stochastic) scalar parameters are vectorized the same
+        way whenever their literal values differ across channels: two
+        channels can share a group (same adstock/saturation type, same
+        prior *kinds*) while still pinning a param like ``alpha`` to
+        different fixed values, since the grouping key ignores literal
+        fixed-param values.
         """
-        params = dict(fixed_params)
         channel_names = list(specs_per_channel.keys())
+        params = dict(fixed_params)
+        for pname in fixed_params:
+            if pname in ("l_max", "normalize"):
+                continue
+            values = [
+                getattr(specs_per_channel[n], f"{kind}_params").get(
+                    pname, fixed_params[pname]
+                )
+                for n in channel_names
+            ]
+            if len(set(values)) > 1:
+                params[pname] = as_xtensor(
+                    np.array(values, dtype=np.float64), dims=(grp_dim,)
+                )
+
         for pname, base_pspec in prior_specs.items():
             channel_pspecs = [
                 getattr(specs_per_channel[n], f"{kind}_priors")[pname]
