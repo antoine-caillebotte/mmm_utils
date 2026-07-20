@@ -1,12 +1,39 @@
 """Utilities to buffer tabular data and persist it as CSV files."""
 
 import os
+from functools import wraps
 
 from pyprojroot import here
 import pandas as pd
 import numpy as np
 
 MMM_PPTX_DIR = here().parent.parent / "mmm_pptx" / "data"
+
+
+def skip_if_paused(func):
+    """Decorator to skip a method call if the logger is paused.
+
+    Parameters
+    ----------
+    func : callable
+        The method to be decorated.
+
+    Returns
+    -------
+    callable
+        A wrapper function that checks the logger's pause state before calling
+        the original method. If the logger is paused, the wrapper returns None
+        without executing the method.
+
+    """
+
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):  # pylint: disable=missing-function-docstring, missing-return-doc, missing-return-type-doc
+        if getattr(self, "_pause", False):
+            return None
+        return func(self, *args, **kwargs)
+
+    return wrapper
 
 
 class DataLogger:
@@ -30,6 +57,10 @@ class DataLogger:
     _buffer : dict
         Internal list of record dictionaries accumulated between
         :meth:`record` calls and the next :meth:`flush_to_csv` call.
+    _dir : str
+        Directory where CSV files will be written.  Defaults to ``logs`` in the
+        project root.  Parent directories must already exist.
+
 
     Examples
     --------
@@ -40,11 +71,33 @@ class DataLogger:
 
     def __init__(self) -> None:
         self._buffer: dict = {}
-        self.dir = here() / "logs"
+        self._dir = here() / "logs"
+        self._pause = False
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+    @property
+    def pause(self) -> bool:
+        """Return whether the logger is currently paused.
+
+        When paused, calls to :meth:`record` will be ignored.
+
+        Returns
+        -------
+        bool
+            True if the logger is paused, False otherwise.
+        """
+        return self._pause
+
+    def pause_logger(self) -> None:
+        """Pause the logger, preventing any new records from being buffered."""
+        self._pause = True
+
+    def resume_logger(self) -> None:
+        """Resume the logger, allowing new records to be buffered."""
+        self._pause = False
+
     def change_dir(self, new_dir: str) -> None:
         """Change the directory where CSV files will be written.
 
@@ -53,8 +106,9 @@ class DataLogger:
         new_dir : str
             New directory path.  Parent directories must already exist.
         """
-        self.dir = new_dir
+        self._dir = new_dir
 
+    @skip_if_paused
     def record(self, dataframe: pd.DataFrame | None = None, **data) -> None:
         """Append a labelled data record to the internal buffer.
 
@@ -78,6 +132,7 @@ class DataLogger:
 
         self._buffer.update(data)
 
+    @skip_if_paused
     def flush_to_csv(self, filename: str, *, append: bool = False) -> None:
         """Write the buffered records to a CSV file and clear the buffer.
 
@@ -115,7 +170,7 @@ class DataLogger:
         write_header = not (append and _csv_file_exists_and_nonempty(filename))
 
         buffered_df.to_csv(
-            self.dir / filename,
+            self._dir / filename,
             mode=write_mode,
             header=write_header,
             index=False,
@@ -133,6 +188,7 @@ class DataLogger:
     def __repr__(self) -> str:
         return f"PlotDataLogger(buffered_records={len(self._buffer)})"
 
+    @skip_if_paused
     def direct_to_csv(
         self, filename: str, dataframe: pd.DataFrame | None = None, **data
     ):
