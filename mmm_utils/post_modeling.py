@@ -397,6 +397,10 @@ def plot_residuals(mmm, ax=None):
     posterior_predictive_y = mmm.idata.posterior_predictive.y * target_scale
     observed_y = mmm.idata.observed_data.y * target_scale
 
+    residual_r2 = az.residual_r2(
+        mmm.idata, "y", group="posterior_predictive", round_to=10
+    )
+
     residuals = observed_y - posterior_predictive_y.mean(dim=["chain", "draw"])
     residuals_pct = xr.where(observed_y != 0, (residuals / observed_y) * 100, np.nan)
     date = mmm.idata.posterior_predictive.date
@@ -409,6 +413,7 @@ def plot_residuals(mmm, ax=None):
         ),
         residuals=np.asarray(residuals.values),
         residuals_pct=np.asarray(residuals_pct.values),
+        residual_r2=residual_r2.mean,
     )
 
     ax.bar(
