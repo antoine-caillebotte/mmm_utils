@@ -169,7 +169,7 @@ class Optimizer:
             dims=["date", "media"],
         )
 
-        print(budget)
+        print(f"✅ Budget template created :\n\t{budget}")
 
         return budget
 
@@ -342,11 +342,9 @@ class Optimizer:
         def track_progress(xk):  # pylint: disable=W0612
             obj_val, _ = f(xk)
             print(
-                {
-                    "budget": np.array(xk).sum(),
-                    "fun": float(obj_val),
-                    "remain_budget": float(constraint["fun"](xk)),
-                }
+                f"⌛Budget {np.array(xk).sum():.4f}, "
+                f"Remaining Budget {float(constraint['fun'](xk)):.2e}, "
+                f"Objective {float(obj_val):.2e}, "
             )
 
         final_budget_shape = (self._campaign_period, len(self._budget_by_media))
@@ -357,6 +355,7 @@ class Optimizer:
         else:
             x0 = np.zeros(shape=final_budget_shape, dtype=float).flatten()
 
+        print()
         res = minimize(
             f,
             x0=x0,
