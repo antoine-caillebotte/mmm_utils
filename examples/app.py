@@ -19,43 +19,19 @@ from plotting import render_simulation_dashboard
 
 MEDIA_NAMES = ["TV", "SEA", "Digital"]
 CONTROL_NAMES = ["price", "school_holidays"]
+SEASON_LABELS = ["sin[1]", "cos[1]", "sin[2]", "cos[2]"]
 
 st.set_page_config(page_title="MMM Simulation", layout="wide")
 
 
 @st.cache_data(show_spinner="Simulation en cours...")
-def run_simulation(
-    media_values,
-    control_values,
-    trend,
-    season_values,
-    intercept,
-    sigma,
-    adstock_alpha_items,
-    adstock_theta_items,
-    saturation_lam_items,
-    umbrella,
-    n,
-    seed,
-):
+def run_simulation(beta, n, seed):
     """Run make_synthetic_data from hashable primitives (cache-friendly)."""
-    beta = MMM_parameter(
-        media=np.array(media_values, dtype=float),
-        control=np.array(control_values, dtype=float),
-        trend=trend,
-        season=np.array(season_values, dtype=float),
-        intercept=intercept,
-        sigma=sigma,
-        adstock_alpha=dict(adstock_alpha_items),
-        adstock_theta=dict(adstock_theta_items),
-        saturation_lam=dict(saturation_lam_items),
-        umbrella=umbrella,
-    )
     ds, media_names, control_names, true_params, true_contributions, ds_transformed = (
         make_synthetic_data(beta=beta, n=n, seed=seed)
     )
-    df = ds.to_dataframe().reset_index()
-    df_transformed = ds_transformed.to_dataframe().reset_index()
+    df = ds.reset_index()
+    df_transformed = ds_transformed.reset_index()
     return (
         df,
         media_names,
@@ -107,6 +83,19 @@ def reset_media_and_control_to_zero():
         st.session_state[f"control_{c}_zero"] = True
 
 
+def reset_trend_intercept_sigma_to_zero():
+    """Callback: force the trend, intercept and sigma checkboxes to zero."""
+    st.session_state["trend_zero"] = True
+    st.session_state["intercept_zero"] = True
+    st.session_state["sigma_zero"] = True
+
+
+def reset_season_to_zero():
+    """Callback: force every seasonality beta checkbox to zero."""
+    for label in SEASON_LABELS:
+        st.session_state[f"season_{label}_zero"] = True
+
+
 with st.sidebar:
     st.header("Paramètres de simulation")
 
@@ -151,6 +140,11 @@ with st.sidebar:
         ]
 
     with st.expander("Tendance, intercept, bruit"):
+        st.button(
+            "Mettre à zéro tendance, intercept & bruit",
+            on_click=reset_trend_intercept_sigma_to_zero,
+            width="stretch",
+        )
         trend = zeroable_slider(
             "Tendance (beta_trend)",
             key="trend",
@@ -167,16 +161,22 @@ with st.sidebar:
             max_value=50.0,
             step=1.0,
         )
-        sigma = st.slider(
+        sigma = zeroable_slider(
             "Bruit (sigma)",
-            min_value=0.001,
+            key="sigma",
+            value_default=float(default_params.sigma),
+            min_value=0.0,
             max_value=5.0,
-            value=float(default_params.sigma),
             step=0.1,
         )
 
     with st.expander("Saisonnalité (beta_season)"):
-        season_labels = ["sin[1]", "cos[1]", "sin[2]", "cos[2]"]
+        st.button(
+            "Mettre à zéro saisonnalité",
+            on_click=reset_season_to_zero,
+            width="stretch",
+        )
+        season_labels = SEASON_LABELS
         season_values = [
             zeroable_slider(
                 label,
@@ -267,21 +267,21 @@ with st.sidebar:
     umbrella = umbrella_val if umbrella_on else default_params.umbrella
 
 
+beta = MMM_parameter(
+    media=np.array(media_values, dtype=float),
+    control=np.array(control_values, dtype=float),
+    trend=trend,
+    season=np.array(season_values, dtype=float),
+    intercept=intercept,
+    sigma=sigma,
+    adstock_alpha=adstock_alpha,
+    adstock_theta=adstock_theta,
+    saturation_lam=saturation_lam,
+    umbrella=umbrella,
+)
+
 df, media_names, control_names, true_params, true_contributions, df_transformed = (
-    run_simulation(
-        media_values=tuple(media_values),
-        control_values=tuple(control_values),
-        trend=trend,
-        season_values=tuple(season_values),
-        intercept=intercept,
-        sigma=sigma,
-        adstock_alpha_items=tuple(sorted(adstock_alpha.items())),
-        adstock_theta_items=tuple(sorted(adstock_theta.items())),
-        saturation_lam_items=tuple(sorted(saturation_lam.items())),
-        umbrella=umbrella,
-        n=n,
-        seed=seed,
-    )
+    run_simulation(beta, n=n, seed=seed)
 )
 
 st.title("Simulation de données MMM")
@@ -293,9 +293,21 @@ for col, (name, value) in zip(cols, true_contributions.items()):
     col.metric(name, f"{value:.1%}")
 
 st.subheader("Visualisation")
+media_view = st.segmented_control(
+    "Médias affichés",
+    options=["bruts", "transformés"],
+    default="bruts",
+    key="media_view",
+)
 theme_type = st.context.theme.get("type") or "light"
 fig = render_simulation_dashboard(
-    df, media_names, control_names, df_transformed, theme=theme_type
+    df,
+    beta,
+    media_names,
+    control_names,
+    df_transformed,
+    theme=theme_type,
+    media_view=media_view or "bruts",
 )
 st.plotly_chart(fig, theme=None, width="stretch")
 

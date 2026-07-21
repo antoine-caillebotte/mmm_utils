@@ -56,13 +56,13 @@ def umbrella_effect_df(df, boost_name, beta):
     if boost_name not in df.columns:
         raise ValueError(f"{boost_name} not in dataframe columns")
 
-    print(f"adding umbrella effect for {boost_name} with beta={beta}")
+    # print(f"adding umbrella effect for {boost_name} with beta={beta}")
     boost = beta * df[boost_name]
     for m in df.columns:
         if m != boost_name:
-            print(
-                f"adding umbrella effect for {boost_name} on {m} equuivalent to {(boost / x[m]).mean() * 100:.1f}% of boost"
-            )
+            # print(
+            #     f"adding umbrella effect for {boost_name} on {m} equuivalent to {(boost / x[m]).mean() * 100:.1f}% of boost"
+            # )
             x[m] = boost * x[m]
         else:
             x[m] = 0
@@ -87,16 +87,16 @@ MMM_parameter = NamedTuple(
 )
 
 default_params = MMM_parameter(
-    media=np.array([1, 2, 3]),
+    media=np.array([3, 2, 1]),  # TV, SEA, Digital
     control=np.array([-2, 2]),
     trend=4.2,
-    season=2 * np.array([1, 1, 0.5, 0]),
+    season=2 * np.array([1, 0.5, 1, 0]),
     intercept=10.0,
     sigma=0.5,
     adstock_alpha={"TV": 0.9, "Digital": 0.8},
     adstock_theta={},  # {"TV": 0.0},
-    saturation_lam={"TV": 0.5, "SEA": 0.5, "Digital": 0.75},
-    umbrella=40.0,
+    saturation_lam={"TV": 3, "SEA": 1.0, "Digital": 1.0},
+    umbrella=0.0,
 )
 
 
@@ -107,6 +107,8 @@ def make_synthetic_data(
 
     Parameters
     ----------
+    beta : MMM_parameter, optional
+        True parameter values.
     n : int, optional
         Number of observations.
     seed : int, optional
@@ -137,13 +139,13 @@ def make_synthetic_data(
 
     # === media with adstock/saturation effects ===
     tv_burst = rng.choice([0, 1], size=n, p=[0.9, 0.1])
-    df["TV"] = tv_burst * rng.normal(100, 20, size=n)
+    df["TV"] = tv_burst * rng.normal(0.8, 0.1, size=n)
 
-    df["SEA"] = rng.normal(50, 10, size=n) + rng.normal(0, 5, size=n)
+    df["SEA"] = rng.normal(0.8, 0.5, size=n)
     df["SEA"] = df["SEA"].rolling(window=3, min_periods=1).mean()
 
-    digital_burst = rng.choice([0, 1], size=n, p=[0.8, 0.2])
-    df["Digital"] = digital_burst * rng.normal(60, 5, size=n)
+    digital_burst = rng.choice([0, 1], size=n, p=[0.85, 0.15])
+    df["Digital"] = digital_burst * rng.normal(0.5, 0.1, size=n)
 
     for m in media_names + control_names:
         df[m], _ = max_abs_scaler(df[m].to_numpy(dtype=float))
@@ -170,12 +172,13 @@ def make_synthetic_data(
     season_features = np.column_stack(
         [
             f(2 * np.pi * k * t / (365.25 / 7))
-            for k in range(1, beta.season.shape[0] // 2 + 1)
             for f in (np.sin, np.cos)
+            for k in range(1, beta.season.shape[0] // 2 + 1)
         ]
     )
 
     df["season"] = season_features @ beta.season
+    df["noise"] = rng.normal(0, beta.sigma, n) if beta.sigma != 0 else np.zeros(n)
 
     df["y"], scale_y = (  # max_abs_scaler
         beta.intercept
@@ -183,10 +186,10 @@ def make_synthetic_data(
         + umbrella_effect_df(media_raw, "TV", beta=beta.umbrella).sum(axis=1)
         + df[control_names].to_numpy(dtype=np.float64) @ beta.control
         + beta.trend * df["trend"]
-        + df["season"]
-        + rng.normal(0, beta.sigma, n),
+        + df["season"],
         1,
     )
+    df["y"] += df["noise"]
 
     true_contributions: dict[str, float] = {
         "media": sum(media_raw[media_names].to_numpy(dtype=np.float64) @ beta.media),
@@ -195,6 +198,7 @@ def make_synthetic_data(
         "season": sum(df["season"]),
     }
     all_contributions_sum = sum(true_contributions.values())
+    all_contributions_sum = 1 if all_contributions_sum == 0 else all_contributions_sum
     for k, v in true_contributions.items():
         true_contributions[k] = v / all_contributions_sum
 
@@ -249,10 +253,18 @@ if __name__ == "__main__":
         make_synthetic_data(n=52 * 6)
     )
 
+    vars_cols = media_names + control_names
+    variance_df = df[vars_cols].var()
+    variance_df_transformed = df_transformed[media_names].var()
+
+    print(f"variance of y: {df['y'].var()}, variance of noise: {df['noise'].var()}")
+    print("variance_df:", variance_df)
+    print("variance_df_transformed:", variance_df_transformed)
+
     print(true_contributions)
 
     plot_example(df, media_names, control_names, df_transformed)
     plt.show()
 
-    df.drop(columns=["trend", "season"], inplace=True)
+    df.drop(columns=["trend", "season", "noise"], inplace=True)
     df.to_csv("synthetic_mm_data.csv", index=False, sep=";", decimal=".")

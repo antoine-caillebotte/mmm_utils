@@ -7,6 +7,7 @@ or control channel keeps the same color across every panel.
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import numpy as np
 
 _CATEGORICAL = {
     "light": [
@@ -35,17 +36,20 @@ _MUTED = {"light": "#898781", "dark": "#898781"}
 _GRID = {"light": "#e1e0d9", "dark": "#2c2c2a"}
 _AXIS = {"light": "#c3c2b7", "dark": "#383835"}
 
-_ROW_TITLES = [
-    "Variable cible (y)",
-    "Médias — bruts",
-    "Médias — transformés (adstock + saturation + ombrelle)",
-    "Contrôles",
-    "Tendance & saisonnalité",
-]
+_MEDIA_ROW_TITLES = {
+    "bruts": "Médias — bruts",
+    "transformés": "Médias — transformés (adstock + saturation + ombrelle)",
+}
 
 
 def render_simulation_dashboard(
-    df, media_names, control_names, df_transformed, theme="light"
+    df,
+    beta,
+    media_names,
+    control_names,
+    df_transformed,
+    theme="light",
+    media_view="bruts",
 ):
     """Build an interactive, theme-aware Plotly dashboard for the MMM simulation.
 
@@ -53,6 +57,8 @@ def render_simulation_dashboard(
     ----------
     df : pd.DataFrame
         Main simulated dataframe (date, y, media, controls, trend, season).
+    beta : MMM_parameter
+        parameter values.
     media_names : list[str]
         Media channel column names.
     control_names : list[str]
@@ -61,6 +67,9 @@ def render_simulation_dashboard(
         Media columns after adstock/saturation/umbrella transforms.
     theme : {"light", "dark"}
         Selects the ink/grid/categorical steps validated for that surface.
+    media_view : {"bruts", "transformés"}
+        Which media series to plot: the raw inputs or the adstock/saturation/
+        umbrella-transformed ones.
 
     Returns
     -------
@@ -75,13 +84,21 @@ def render_simulation_dashboard(
     entities = list(media_names) + list(control_names) + ["trend", "season"]
     colors = {name: palette[i % len(palette)] for i, name in enumerate(entities)}
 
+    media_df = df if media_view == "bruts" else df_transformed
+    row_titles = [
+        "Variable cible (y)",
+        _MEDIA_ROW_TITLES[media_view],
+        "Contrôles",
+        "Tendance & saisonnalité",
+    ]
+
     fig = make_subplots(
-        rows=5,
+        rows=4,
         cols=1,
         shared_xaxes=True,
-        vertical_spacing=0.055,
-        row_heights=[0.22, 0.2, 0.2, 0.18, 0.2],
-        subplot_titles=_ROW_TITLES,
+        vertical_spacing=0.07,
+        row_heights=[0.25, 0.25, 0.2, 0.2],
+        subplot_titles=row_titles,
     )
 
     fig.add_trace(
@@ -98,10 +115,13 @@ def render_simulation_dashboard(
     )
 
     for m in media_names:
+        if beta.media[media_names.index(m)] == 0:
+            continue
+
         fig.add_trace(
             go.Scatter(
-                x=df["date"],
-                y=df[m],
+                x=media_df["date"],
+                y=media_df[m],
                 mode="lines",
                 name=m,
                 legendgroup=m,
@@ -111,21 +131,11 @@ def render_simulation_dashboard(
             row=2,
             col=1,
         )
-        fig.add_trace(
-            go.Scatter(
-                x=df_transformed["date"],
-                y=df_transformed[m],
-                mode="lines",
-                name=m,
-                legendgroup=m,
-                showlegend=False,
-                line=dict(color=colors[m], width=2),
-            ),
-            row=3,
-            col=1,
-        )
 
     for c in control_names:
+        if beta.control[control_names.index(c)] == 0:
+            continue
+
         fig.add_trace(
             go.Scatter(
                 x=df["date"],
@@ -136,27 +146,42 @@ def render_simulation_dashboard(
                 showlegend=True,
                 line=dict(color=colors[c], width=2),
             ),
+            row=3,
+            col=1,
+        )
+
+    if beta.trend != 0:
+        fig.add_trace(
+            go.Scatter(
+                x=df["date"],
+                y=df["trend"],
+                mode="lines",
+                name="Tendance",
+                legendgroup="trend",
+                showlegend=True,
+                line=dict(color=colors["trend"], width=2),
+            ),
             row=4,
             col=1,
         )
 
-    for s in ("trend", "season"):
+    if np.any(beta.season != 0):
         fig.add_trace(
             go.Scatter(
                 x=df["date"],
-                y=df[s],
+                y=df["season"],
                 mode="lines",
-                name=s,
-                legendgroup=s,
+                name="Saisonnalité",
+                legendgroup="season",
                 showlegend=True,
-                line=dict(color=colors[s], width=2),
+                line=dict(color=colors["season"], width=2),
             ),
-            row=5,
+            row=4,
             col=1,
         )
 
     fig.update_layout(
-        height=900,
+        height=760,
         margin=dict(l=10, r=10, t=40, b=10),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
