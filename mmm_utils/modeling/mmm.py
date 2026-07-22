@@ -14,6 +14,7 @@ import cloudpickle
 import numpy as np
 import pandas as pd
 import arviz as az
+
 import pymc as pm
 import pymc.dims as pmd
 import pytensor.xtensor as ptx
@@ -37,7 +38,7 @@ class MMMDataHandler:
     y: ArrayLike | None = None
     season: ArrayLike | None = None
 
-    _scales: dict[str, np.ndarray | float] = field(default_factory=dict)
+    _scales: dict[str, float | dict[str, float]] = field(default_factory=dict)
 
     def build_pm_data(self, model: pm.Model):
         """Build PyMC data containers from processed inputs.
@@ -55,12 +56,23 @@ class MMMDataHandler:
         """
 
         x_m = pmd.Data(
-            "channel_data", self.X_media, dims=("date", "media"), model=model
+            "channel_data",
+            self.X_media,
+            dims=("date", "media"),
+            model=model,
         )
         x_c = pmd.Data(
-            "control_data", self.X_control, dims=("date", "control"), model=model
+            "control_data",
+            self.X_control,
+            dims=("date", "control"),
+            model=model,
         )
-        x_s = pmd.Data("season_data", self.season, dims=("date", "season"), model=model)
+        x_s = pmd.Data(
+            "season_data",
+            self.season,
+            dims=("date", "season"),
+            model=model,
+        )
         y_o = pmd.Data("y_obs", self.y, dims="date", model=model)
 
         return x_m, x_c, x_s, y_o
@@ -235,16 +247,11 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             beta_adjusted = self.config.beta_priors.get_beta_adjusted(
                 x_m_transformed, x_c
             )
-            beta_media_adjusted = pmd.Deterministic(
-                "beta_media_adjusted",
-                value=beta_adjusted["media"],
-                dims=("date", "media"),
-            )
 
             # === MEDIA ===
             media_contribution = pmd.Deterministic(
                 "media_contribution",
-                value=x_m_transformed * beta_media_adjusted,
+                value=x_m_transformed * beta_adjusted["media"],
                 dims=["date", "media"],
             )
             total_media_contribution = pmd.Deterministic(
@@ -312,6 +319,7 @@ class MMM:  # pylint: disable=too-many-instance-attributes
         with self.model:
             self.idata = pm.sample(
                 draws=draws,
+                var_names=self.config.var_to_sample,
                 tune=tune,
                 chains=chains,
                 cores=cores,
@@ -477,24 +485,14 @@ class MMM:  # pylint: disable=too-many-instance-attributes
         RuntimeError
             If called before fitting the model.
         """
-        if self.idata is None or self.data.X_media is None:
+        if self.idata is None or self.data.X_media is None or self.model is None:
             raise RuntimeError("Call fit() before compute_contributions().")
-        post = self.idata.posterior
-        b_media = post["beta_media"].mean(("chain", "draw")).values
-        contrib_media = self.data.X_media * b_media[None, :]
-        out = pd.DataFrame(
-            contrib_media, columns=[f"contrib_{m}" for m in self.config.media_names]
-        )
-        if "intercept" in post:
-            out["intercept"] = float(post["intercept"].mean().values)
-        if (
-            self.data.season is not None
-            and self.data.season.shape[1] > 0
-            and "beta_season" in post
-        ):
-            b_s = post["beta_season"].mean(("chain", "draw")).values
-            out["seasonality"] = self.data.season @ b_s
-        out["total_media"] = out[
-            [c for c in out.columns if c.startswith("contrib_")]
-        ].sum(axis=1)
-        return out
+
+        with self.model:
+            self.idata.posterior = pm.compute_deterministics(
+                self.idata.posterior,
+                merge_dataset=True,
+                var_names=list(self.config.expressions_to_compute),
+            )
+
+        return self.idata
