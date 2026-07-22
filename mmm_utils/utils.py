@@ -79,7 +79,7 @@ class MixMediaDataCreator:
     ...     manager.dump_to_tmp_csv(df)
     """
 
-    def __init__(self, filename):
+    def __init__(self, filename, dirpath="data", safe_mode: bool = True):
         """Initialize the manager with the final output filename.
 
         Parameters
@@ -88,8 +88,10 @@ class MixMediaDataCreator:
             Name (without extension) of the final CSV file written to
             ``<project_root>/data`` on exit.
         """
+        self._dirpath = dirpath
         self._filename = filename
         self._tmp = 0
+        self._safe_mode = safe_mode
 
         self.df: pd.DataFrame = None
 
@@ -117,7 +119,11 @@ class MixMediaDataCreator:
         tb : traceback or None
             Traceback object if an exception occurred, else ``None``.
         """
-        delete = input("Do you want to remove temporary files? (any/no): ") != "no"
+        if self._safe_mode:
+            delete = input("Do you want to remove temporary files? (any/no): ") != "no"
+        else:
+            delete = True
+
         if delete:
             self.delete_tmp_files()
 
@@ -125,19 +131,21 @@ class MixMediaDataCreator:
         self.df.columns = self.df.columns.str.lower()
         self.df.columns = self.df.columns.str.replace(" ", "_")
 
+        self.df = self.df.round({m: 6 for m in self.df.columns if m != "date"})
+
         self.df.to_csv(
-            here() / "data" / f"{self._filename}.csv",
+            here() / self._dirpath / f"{self._filename}.csv",
             index=False,
             sep=";",
             decimal=".",
         )
-        print(f"Data saved to {here() / 'data' / f'{self._filename}.csv'}")
+        print(f"✅Data saved to {here() / self._dirpath / f'{self._filename}.csv'}")
 
     def delete_tmp_files(self):
         """Delete sequential temporary CSV files from the data directory."""
         i = 0
         while True:
-            tmp_file = here() / "data" / f"tmp_building_mm_{i}.csv"
+            tmp_file = here() / self._dirpath / f"tmp_building_mm_{i}.csv"
             if not os.path.exists(tmp_file):
                 break
             os.remove(tmp_file)
@@ -153,14 +161,14 @@ class MixMediaDataCreator:
         """
         if data is not None:
             data.to_csv(
-                here() / "data" / f"tmp_building_mm_{self._tmp}.csv",
+                here() / self._dirpath / f"tmp_building_mm_{self._tmp}.csv",
                 index=False,
                 sep=";",
                 decimal=".",
             )
         else:
             self.df.to_csv(
-                here() / "data" / f"tmp_building_mm_{self._tmp}.csv",
+                here() / self._dirpath / f"tmp_building_mm_{self._tmp}.csv",
                 index=False,
                 sep=";",
                 decimal=".",
@@ -183,7 +191,7 @@ class MixMediaDataCreator:
             Current instance with updated dataframe.
         """
         for old_value, new_value in mapper.items():
-            self.df.loc[:, self.df[column] == old_value, column] = new_value  # pylint: disable=unsubscriptable-object
+            self.df.loc[self.df[column] == old_value, column] = new_value  # pylint: disable=unsubscriptable-object
         return self
 
     def rename_if(self, column, new_value: str, if_column: str, if_value: str):
@@ -205,7 +213,7 @@ class MixMediaDataCreator:
         self
             Current instance with updated dataframe.
         """
-        self.df.loc[:, self.df[if_column] == if_value, column] = new_value  # pylint: disable=unsubscriptable-object
+        self.df.loc[self.df[if_column] == if_value, column] = new_value  # pylint: disable=unsubscriptable-object
         return self
 
 
@@ -294,13 +302,15 @@ class LeLabDataBase:
         If the MongoDB client cannot be initialized.
     """
 
-    def __init__(self, uri: str):
+    def __init__(self, uri: str, safe_mode: bool = True):
         """Initialize the MongoDB client and resolve the target collection.
 
         Parameters
         ----------
         uri : str
             MongoDB connection URI.
+        safe_mode : bool, default=True
+            If ``True``, perform additional checks on the database and collection.
 
         Raises
         ------
@@ -310,6 +320,7 @@ class LeLabDataBase:
             If the created client is ``None``.
         """
 
+        self._safe_mode = safe_mode
         self._client = MongoClient(uri)
         assert self._client is not None, "MongoDB client is None. Check your MONGO_URI."
 
@@ -336,7 +347,7 @@ class LeLabDataBase:
         Parameters
         ----------
         doc : dict
-            Document to serialize. Must contain ``code_module`` and ``date`` keys.
+            Document to serialize. Must contain ``code_module`` and ``created_at`` keys.
         logs_dir : pathlib.Path, default=here() / "logs"
             Directory where the JSON file will be written.
 
@@ -350,7 +361,7 @@ class LeLabDataBase:
             logs_dir = here() / "logs"
 
         code_module = doc["code_module"]
-        ts = doc["date"].strftime("%Y_%m%dT%Hh%Mm%Ss_%fZ")
+        ts = doc["created_at"].strftime("%Y_%m%dT%Hh%Mm%Ss_%fZ")
 
         json_path = logs_dir / f"{code_module}_{ts}.json"
 
@@ -426,7 +437,9 @@ class LeLabDataBase:
             if ask != "":
                 raise ValueError("Delete cancelled by user ❌")
 
-            self._db.delete_one({"code_module": code_module, "date": old_one["date"]})
+            self._db.delete_one(
+                {"code_module": code_module, "created_at": old_one["created_at"]}
+            )
             print(
                 f"{code_module} (dated {old_one['created_at']}) deleted successfully 🗑️"
             )
@@ -438,7 +451,7 @@ class LeLabDataBase:
         Parameters
         ----------
         doc : dict
-            Document payload containing at least ``code_module`` and ``date``.
+            Document payload containing at least ``code_module`` and ``created_at``.
         """
         _check_doc_lelab(doc)
         code_module = doc["code_module"]
@@ -466,12 +479,13 @@ class LeLabDataBase:
             raise ValueError(f"No document found with code_module: {code_module}")
 
         old_one = all_doc[0]
-        ask = input(
-            f"⚠️ Are you sure you want to update {code_module} (dated {old_one['created_at']})?"
-            " Press Enter to continue..."
-        )
-        if ask != "":
-            raise ValueError("Update cancelled by user ❌")
+        if self._safe_mode:
+            ask = input(
+                f"⚠️ Are you sure you want to update {code_module} (dated {old_one['created_at']})?"
+                " Press Enter to continue..."
+            )
+            if ask != "":
+                raise ValueError("Update cancelled by user ❌")
 
         self._db.update_one({"_id": old_one["_id"]}, {"$set": doc})
         print(f"{code_module} (dated {doc['created_at']}) updated successfully ✅")
