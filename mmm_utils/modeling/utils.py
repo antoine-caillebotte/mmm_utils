@@ -113,6 +113,7 @@ def max_abs_scaler(x: np.ndarray) -> np.ndarray:
     tuple[np.ndarray, np.ndarray]
         Scaled data and scale factors used per column.
     """
+    x = np.asarray(x, dtype=float)
     scale = np.abs(x).max(axis=0)
     if len(scale.shape) == 0:
         scale = np.array([scale])

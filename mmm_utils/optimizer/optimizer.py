@@ -257,7 +257,9 @@ class Optimizer:
 
         # _compile_objective_and_grad
         target_distribution = extract_response_distribution(
-            optimizable_model, self.idata, response_variable="total_media_contribution"
+            optimizable_model,
+            self.idata.posterior,
+            response_variable="total_media_contribution",
         )
 
         optimizable_target = _utiliy_function(target_distribution)
