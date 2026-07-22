@@ -14,6 +14,7 @@ import cloudpickle
 import numpy as np
 import pandas as pd
 import arviz as az
+
 import pymc as pm
 import pymc.dims as pmd
 import pytensor.xtensor as ptx
@@ -37,7 +38,7 @@ class MMMDataHandler:
     y: ArrayLike | None = None
     season: ArrayLike | None = None
 
-    _scales: dict[str, np.ndarray | float] = field(default_factory=dict)
+    _scales: dict[str, float | dict[str, float]] = field(default_factory=dict)
 
     def build_pm_data(self, model: pm.Model):
         """Build PyMC data containers from processed inputs.
@@ -55,12 +56,23 @@ class MMMDataHandler:
         """
 
         x_m = pmd.Data(
-            "channel_data", self.X_media, dims=("date", "media"), model=model
+            "channel_data",
+            self.X_media,
+            dims=("date", "media"),
+            model=model,
         )
         x_c = pmd.Data(
-            "control_data", self.X_control, dims=("date", "control"), model=model
+            "control_data",
+            self.X_control,
+            dims=("date", "control"),
+            model=model,
         )
-        x_s = pmd.Data("season_data", self.season, dims=("date", "season"), model=model)
+        x_s = pmd.Data(
+            "season_data",
+            self.season,
+            dims=("date", "season"),
+            model=model,
+        )
         y_o = pmd.Data("y_obs", self.y, dims="date", model=model)
 
         return x_m, x_c, x_s, y_o
@@ -105,30 +117,30 @@ class MMMDataHandler:
             Whether to rescale media, controls, and target by their max absolute value.
         """
 
-        x_media = X[config.media_names].to_numpy(dtype=np.float64)  # pylint: disable=invalid-name
-        x_control = X[config.control_names].to_numpy(dtype=np.float64)  # pylint: disable=invalid-name
+        x_media = X[config.media_names]
+        x_control = X[config.control_names]
 
         if rescale:
-            self.X_media, self._scales["media"] = max_abs_scaler(
-                np.asarray(x_media, dtype=np.float64)
-            )
+            self.X_media, self._scales["media"] = max_abs_scaler(x_media)
             self._scales["media"] = dict(zip(config.media_names, self._scales["media"]))
 
-            self.X_control, self._scales["control"] = max_abs_scaler(
-                np.asarray(x_control, dtype=np.float64)
-            )
+            self.X_control, self._scales["control"] = max_abs_scaler(x_control)
             self._scales["control"] = dict(
                 zip(config.control_names, self._scales["control"])
             )
 
-            self.y, self._scales["y"] = max_abs_scaler(np.asarray(y, dtype=np.float64))
+            self.y, self._scales["y"] = max_abs_scaler(y)
             self._scales["y"] = float(self._scales["y"][0])
 
         else:
             self.X_media = np.asarray(x_media, dtype=np.float64)
             self.X_control = np.asarray(x_control, dtype=np.float64)
             self.y = np.asarray(y, dtype=np.float64)
-            self._scales = {"media": 1, "control": 1, "y": 1}
+            self._scales = {
+                "media": {m: 1 for m in config.media_names},
+                "control": {c: 1 for c in config.control_names},
+                "y": 1,
+            }
 
         self.date = X[config.date_name].to_numpy()
 
@@ -235,16 +247,11 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             beta_adjusted = self.config.beta_priors.get_beta_adjusted(
                 x_m_transformed, x_c
             )
-            beta_media_adjusted = pmd.Deterministic(
-                "beta_media_adjusted",
-                value=beta_adjusted["media"],
-                dims=("date", "media"),
-            )
 
             # === MEDIA ===
             media_contribution = pmd.Deterministic(
                 "media_contribution",
-                value=x_m_transformed * beta_media_adjusted,
+                value=x_m_transformed * beta_adjusted["media"],
                 dims=["date", "media"],
             )
             total_media_contribution = pmd.Deterministic(
@@ -300,11 +307,19 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             Number of CPU cores to use.
         target_accept : float, optional
             Target acceptance probability for NUTS.
+
+        Raises
+        ------
+        RuntimeError
+            If called before building the model with :meth:`build`.
         """
+        if self.model is None:
+            raise RuntimeError("Call build() before fit().")
 
         with self.model:
             self.idata = pm.sample(
                 draws=draws,
+                var_names=self.config.var_to_sample,
                 tune=tune,
                 chains=chains,
                 cores=cores,
@@ -425,15 +440,37 @@ class MMM:  # pylint: disable=too-many-instance-attributes
 
         Returns
         -------
-        dict
-            Dictionary mapping each media channel name to its sampled saturation curve.
+        tuple
+            A tuple containing:
+            - curves: dict[str, XArray] - Saturation curves for each media channel.
+            - saturation: list[dict] - Saturation values for each media channel.
         """
         x = np.linspace(0, x_max, 200)
         curves = {}
         for _, m in enumerate(self.config.media_names):
             curves[m] = self.saturations[m].sample_saturation_curve(self, x)
 
-        return curves
+        media_scales = self.data.scale("media")
+        saturation = []
+        for m in self.config.media_names:
+            curve = curves[m]
+            xx = (curve.coords["x"]).values * media_scales[m]
+            beta = (
+                self.idata.posterior["beta_media"]
+                .sel(media=m)
+                .mean(dim=["chain", "draw"])
+                .values
+            )
+            yy = beta * curve.mean(dim=["chain", "draw"]).values * self.data.scale("y")
+
+            saturation.append(
+                {
+                    "name": m,
+                    "values": {str(int(xx[k])): float(yy[k]) for k in range(len(xx))},
+                }
+            )
+
+        return curves, saturation
 
     def compute_contributions(self) -> pd.DataFrame:
         """Compute posterior mean contributions by component.
@@ -448,24 +485,14 @@ class MMM:  # pylint: disable=too-many-instance-attributes
         RuntimeError
             If called before fitting the model.
         """
-        if self.idata is None or self.data.X_media is None:
+        if self.idata is None or self.data.X_media is None or self.model is None:
             raise RuntimeError("Call fit() before compute_contributions().")
-        post = self.idata.posterior
-        b_media = post["beta_media"].mean(("chain", "draw")).values
-        contrib_media = self.data.X_media * b_media[None, :]
-        out = pd.DataFrame(
-            contrib_media, columns=[f"contrib_{m}" for m in self.config.media_names]
-        )
-        if "intercept" in post:
-            out["intercept"] = float(post["intercept"].mean().values)
-        if (
-            self.data.season is not None
-            and self.data.season.shape[1] > 0
-            and "beta_season" in post
-        ):
-            b_s = post["beta_season"].mean(("chain", "draw")).values
-            out["seasonality"] = self.data.season @ b_s
-        out["total_media"] = out[
-            [c for c in out.columns if c.startswith("contrib_")]
-        ].sum(axis=1)
-        return out
+
+        with self.model:
+            self.idata.posterior = pm.compute_deterministics(
+                self.idata.posterior,
+                merge_dataset=True,
+                var_names=list(self.config.expressions_to_compute),
+            )
+
+        return self.idata
