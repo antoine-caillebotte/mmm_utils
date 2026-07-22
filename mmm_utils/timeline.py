@@ -469,6 +469,28 @@ class Timeline:
     # public direct getters
     # ------------------------------------------------------------------
     @property
+    def controls(self) -> list[str]:
+        """List of control variable names.
+
+        Returns
+        -------
+        list of str
+            List of control variable names.
+        """
+        return self._data.controls
+
+    @property
+    def media(self) -> list[str]:
+        """List of media variable names.
+
+        Returns
+        -------
+        list of str
+            List of media variable names.
+        """
+        return self._data.media
+
+    @property
     def target(self) -> str:
         """Name of the target variable.
 
