@@ -105,30 +105,30 @@ class MMMDataHandler:
             Whether to rescale media, controls, and target by their max absolute value.
         """
 
-        x_media = X[config.media_names].to_numpy(dtype=np.float64)  # pylint: disable=invalid-name
-        x_control = X[config.control_names].to_numpy(dtype=np.float64)  # pylint: disable=invalid-name
+        x_media = X[config.media_names]
+        x_control = X[config.control_names]
 
         if rescale:
-            self.X_media, self._scales["media"] = max_abs_scaler(
-                np.asarray(x_media, dtype=np.float64)
-            )
+            self.X_media, self._scales["media"] = max_abs_scaler(x_media)
             self._scales["media"] = dict(zip(config.media_names, self._scales["media"]))
 
-            self.X_control, self._scales["control"] = max_abs_scaler(
-                np.asarray(x_control, dtype=np.float64)
-            )
+            self.X_control, self._scales["control"] = max_abs_scaler(x_control)
             self._scales["control"] = dict(
                 zip(config.control_names, self._scales["control"])
             )
 
-            self.y, self._scales["y"] = max_abs_scaler(np.asarray(y, dtype=np.float64))
+            self.y, self._scales["y"] = max_abs_scaler(y)
             self._scales["y"] = float(self._scales["y"][0])
 
         else:
             self.X_media = np.asarray(x_media, dtype=np.float64)
             self.X_control = np.asarray(x_control, dtype=np.float64)
             self.y = np.asarray(y, dtype=np.float64)
-            self._scales = {"media": 1, "control": 1, "y": 1}
+            self._scales = {
+                "media": {m: 1 for m in config.media_names},
+                "control": {c: 1 for c in config.control_names},
+                "y": 1,
+            }
 
         self.date = X[config.date_name].to_numpy()
 
@@ -300,7 +300,14 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             Number of CPU cores to use.
         target_accept : float, optional
             Target acceptance probability for NUTS.
+
+        Raises
+        ------
+        RuntimeError
+            If called before building the model with :meth:`build`.
         """
+        if self.model is None:
+            raise RuntimeError("Call build() before fit().")
 
         with self.model:
             self.idata = pm.sample(
@@ -425,15 +432,37 @@ class MMM:  # pylint: disable=too-many-instance-attributes
 
         Returns
         -------
-        dict
-            Dictionary mapping each media channel name to its sampled saturation curve.
+        tuple
+            A tuple containing:
+            - curves: dict[str, XArray] - Saturation curves for each media channel.
+            - saturation: list[dict] - Saturation values for each media channel.
         """
         x = np.linspace(0, x_max, 200)
         curves = {}
         for _, m in enumerate(self.config.media_names):
             curves[m] = self.saturations[m].sample_saturation_curve(self, x)
 
-        return curves
+        media_scales = self.data.scale("media")
+        saturation = []
+        for m in self.config.media_names:
+            curve = curves[m]
+            xx = (curve.coords["x"]).values * media_scales[m]
+            beta = (
+                self.idata.posterior["beta_media"]
+                .sel(media=m)
+                .mean(dim=["chain", "draw"])
+                .values
+            )
+            yy = beta * curve.mean(dim=["chain", "draw"]).values * self.data.scale("y")
+
+            saturation.append(
+                {
+                    "name": m,
+                    "values": {str(int(xx[k])): float(yy[k]) for k in range(len(xx))},
+                }
+            )
+
+        return curves, saturation
 
     def compute_contributions(self) -> pd.DataFrame:
         """Compute posterior mean contributions by component.
