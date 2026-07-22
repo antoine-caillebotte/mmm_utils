@@ -3,6 +3,8 @@
 import os
 from functools import wraps
 
+
+from pathlib import Path
 from pyprojroot import here
 import pandas as pd
 import numpy as np
@@ -98,12 +100,12 @@ class DataLogger:
         """Resume the logger, allowing new records to be buffered."""
         self._pause = False
 
-    def change_dir(self, new_dir: str) -> None:
+    def change_dir(self, new_dir: str | Path) -> None:
         """Change the directory where CSV files will be written.
 
         Parameters
         ----------
-        new_dir : str
+        new_dir : str | Path
             New directory path.  Parent directories must already exist.
         """
         self._dir = new_dir
