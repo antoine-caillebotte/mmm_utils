@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 import arviz as az
 
+
 import pymc as pm
 import pymc.dims as pmd
 import pytensor.xtensor as ptx
@@ -129,6 +130,7 @@ class MMMDataHandler:
                 zip(config.control_names, self._scales["control"])
             )
 
+            self.y, self._scales["y"] = max_abs_scaler(y)
             self.y, self._scales["y"] = max_abs_scaler(y)
             self._scales["y"] = float(self._scales["y"][0])
 
@@ -319,7 +321,7 @@ class MMM:  # pylint: disable=too-many-instance-attributes
         with self.model:
             self.idata = pm.sample(
                 draws=draws,
-                var_names=self.config.var_to_sample,
+                var_names=self.config.var_names,
                 tune=tune,
                 chains=chains,
                 cores=cores,

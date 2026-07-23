@@ -180,31 +180,6 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
                     "default prior will be used"
                 )
 
-    def __post_init__(self):
-        if self.seasonality_order < 0:
-            raise ValueError("seasonality_order must be non-negative")
-
-        if not isinstance(self.media_transforms, dict):
-            raise TypeError("media_transforms must be a dict[str, MediaTransformSpec]")
-
-        for name, spec in self.media_transforms.items():
-            if not isinstance(spec, MediaTransformSpec):
-                raise TypeError(
-                    f"media_transforms[{name}] must be a MediaTransformSpec"
-                )
-            if name not in self.media_names:
-                raise ValueError(
-                    f"media_transforms contains a spec for '{name}', "
-                    "but that channel is not in media_names"
-                )
-
-        for name in self.media_names:
-            if name not in self.media_transforms:
-                warnings.warn(
-                    f"media_names contains '{name}', but no MediaTransformSpec, "
-                    "default prior will be used"
-                )
-
     @property
     def var_names(self) -> list[str]:
         """List all variable names in the model, including media and control parameters.
