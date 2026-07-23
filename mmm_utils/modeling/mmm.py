@@ -446,17 +446,30 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             A tuple containing:
             - curves: dict[str, XArray] - Saturation curves for each media channel.
             - saturation: list[dict] - Saturation values for each media channel.
+
+        Raises
+        ------
+        RuntimeError
+            If called before fitting the model.
         """
+        if self.idata is None or self.model is None:
+            raise RuntimeError("Call fit() before sample_saturation_curves().")
+
         x = np.linspace(0, x_max, 200)
         curves = {}
-        for _, m in enumerate(self.config.media_names):
+        for m in self.config.media_names:
             curves[m] = self.saturations[m].sample_saturation_curve(self, x)
 
         media_scales = self.data.scale("media")
-        saturation = []
+        saturation = {}
         for m in self.config.media_names:
             curve = curves[m]
-            xx = (curve.coords["x"]).values * media_scales[m]
+            xx = (curve.coords["x"]).values
+            if isinstance(media_scales, dict):
+                xx = xx * media_scales[m]
+            else:
+                xx = xx * media_scales
+
             beta = (
                 self.idata.posterior["beta_media"]
                 .sel(media=m)
@@ -464,13 +477,7 @@ class MMM:  # pylint: disable=too-many-instance-attributes
                 .values
             )
             yy = beta * curve.mean(dim=["chain", "draw"]).values * self.data.scale("y")
-
-            saturation.append(
-                {
-                    "name": m,
-                    "values": {str(int(xx[k])): float(yy[k]) for k in range(len(xx))},
-                }
-            )
+            saturation[m] = {"x": xx, "y": yy}
 
         return curves, saturation
 
@@ -494,7 +501,7 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             self.idata.posterior = pm.compute_deterministics(
                 self.idata.posterior,
                 merge_dataset=True,
-                var_names=list(self.config.expressions_to_compute),
+                var_names=self.config.expressions_to_compute,
             )
 
         return self.idata

@@ -277,7 +277,7 @@ def plot_adstock_effects(data, mmm: MMM, media: list[str]):  # pylint: disable=t
     data_logger.record(date=time)
 
     media_scales = mmm.data.scale("media")
-    posterior_ds = mmm.idata.posterior.to_dataset()
+    posterior = mmm.idata.posterior
 
     adstock_groups = _compute_adstock_groups(
         mmm.config.media_names, mmm.config.media_transforms
@@ -323,9 +323,9 @@ def plot_adstock_effects(data, mmm: MMM, media: list[str]):  # pylint: disable=t
             transform_params[pname] = pval
 
         for pname, (var_name, coord_dim, coord_value) in channel_var.get(m, {}).items():
-            if var_name not in posterior_ds:
+            if var_name not in posterior:
                 continue
-            da = posterior_ds[var_name].mean(dim=["chain", "draw"])
+            da = posterior[var_name].mean(dim=["chain", "draw"])
             if coord_dim is not None:
                 da = da.sel({coord_dim: coord_value})
             transform_params[pname] = float(da)
@@ -638,16 +638,16 @@ def adstock_to_half_life(mmm, media: list[str]) -> pd.DataFrame:  # pylint: disa
                 grp_dim = f"media_agrp{grp_idx}"
                 channel_var[name] = (f"adstock_alpha_agrp{grp_idx}", grp_dim, name)
 
-    posterior_ds = mmm.idata.posterior.to_dataset() if channel_var else None
+    posterior = mmm.idata.posterior if channel_var else None
 
     stochastic_alphas: dict[str, float] = {}
     for m in media:
         if m not in channel_var:
             continue
         var_name, coord_dim, coord_value = channel_var[m]
-        if var_name not in posterior_ds:  # pylint: disable=unsupported-membership-test
+        if var_name not in posterior:  # pylint: disable=unsupported-membership-test
             continue
-        da = posterior_ds[var_name].mean(dim=["chain", "draw"])  # pylint: disable=unsubscriptable-object
+        da = posterior[var_name].mean(dim=["chain", "draw"])  # pylint: disable=unsubscriptable-object
         if coord_dim is not None:
             da = da.sel({coord_dim: coord_value})
         stochastic_alphas[m] = float(da)

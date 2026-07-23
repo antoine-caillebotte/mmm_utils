@@ -13,6 +13,8 @@ import pymc.dims as pmd
 
 import seaborn as sns
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 
 
 PriorType = Literal[
@@ -310,7 +312,7 @@ def _resolve_prior_spec_for_var(mmm, var: str, media_name: str | None) -> PriorS
     )
 
 
-def plot_prior_vs_posterior(  # pylint: disable=too-many-locals
+def plot_prior_vs_posterior(  # pylint: disable=too-many-locals, too-many-arguments, too-many-statements
     mmm,
     var: str,
     media: list[str] | None,
@@ -318,7 +320,7 @@ def plot_prior_vs_posterior(  # pylint: disable=too-many-locals
     ncol: int = 3,
     figsize=(12, 8),
     separately=False,
-):  # pylint: disable=too-many-arguments
+):
     """Plot prior and posterior distributions for a given variable and media.
 
     Parameters
@@ -372,7 +374,7 @@ def plot_prior_vs_posterior(  # pylint: disable=too-many-locals
         sns.kdeplot(
             prior_sample,
             ax=ax,
-            label=f"{label_name} - Prior (sampled)",
+            label=f"{label_name} - Prior (sampled)" if separately else None,
             color=f"C{i}",
             fill=True,
             cut=0 if np.min(prior_sample) >= 0 else 3,
@@ -381,7 +383,7 @@ def plot_prior_vs_posterior(  # pylint: disable=too-many-locals
         sns.kdeplot(
             posterior_sample,
             ax=ax,
-            label=f"{label_name} - Posterior",
+            label=f"{label_name} - Posterior" if separately else None,
             color=f"C{i}",
             fill=False,
             cut=0 if np.min(posterior_sample) >= 0 else 3,
@@ -423,7 +425,7 @@ def plot_prior_vs_posterior(  # pylint: disable=too-many-locals
             linewidth=2,
             label=f"{label_name} - {prior_spec.kind} PDF",
         )
-        ax.legend()
+        ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15), ncol=1)
 
     if separately:
         nrow = int(np.ceil(len(media_list) / ncol))
@@ -443,8 +445,18 @@ def plot_prior_vs_posterior(  # pylint: disable=too-many-locals
         fig, axes = plt.subplots(figsize=figsize)
         for i, m in enumerate(media_list):
             _make_plot(axes, i, m)
+
+        existing_handles, _ = axes.get_legend_handles_labels()
+        legend_handles = existing_handles + [
+            Line2D(
+                [0], [0], color="black", linestyle="-", linewidth=2, label="Posterior"
+            ),
+            Patch(facecolor="0.7", edgecolor="0.7", label="Prior (sampled)"),
+        ]
         axes.legend(
-            loc="upper center", bbox_to_anchor=(0.5, -0.15), ncol=len(media_list)
+            handles=legend_handles,
+            loc="center left",
+            bbox_to_anchor=(1.02, 0.5),
         )
 
     fig.suptitle(var, fontsize=16, fontweight="bold")

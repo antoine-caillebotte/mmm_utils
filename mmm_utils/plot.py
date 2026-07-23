@@ -708,7 +708,6 @@ def plot_saturation_curves(  # pylint: disable=too-many-locals
         Dictionary mapping media channel names to their corresponding Axes objects.
     """
     fig, ax = plt.subplots(len(media) // 3 + 1, 3, figsize=(16, 5))
-    media_scales = mmm.data.scale("media")
     target_scale = mmm.data.scale("y")
 
     contrib = mmm.idata.posterior.media_contribution.sel(media=media).mean(
@@ -718,19 +717,10 @@ def plot_saturation_curves(  # pylint: disable=too-many-locals
     data_logger.clear()
 
     for i, m in enumerate(media):
-        curve = curves[m]
-
-        xx = (curve.coords["x"]).values * media_scales[m]
-        beta = (
-            mmm.idata.posterior["beta_media"]
-            .sel(media=m)
-            .mean(dim=["chain", "draw"])
-            .values
-        )
-        yy = beta * curve.mean(dim=["chain", "draw"]).values * target_scale
+        xx = curves[m].get("x")
+        yy = curves[m].get("y")
 
         axi = ax[i // 3, i % 3]
-
         axi.plot(
             xx,
             yy,
@@ -747,17 +737,6 @@ def plot_saturation_curves(  # pylint: disable=too-many-locals
             alpha=0.5,
             label=m,
         )
-
-        # present_contrib = yy[np.argmin(np.abs(xx - total_spend[m]))]
-        # axi.plot(
-        #     total_spend[m],
-        #     present_contrib,
-        #     "X",
-        #     markersize=10,
-        #     color="red",
-        # )
-        # axi.axvline(total_spend[m], color="black", lw=0.5, ls="--")
-        # axi.axhline(present_contrib, color="black", lw=0.5, ls="--")
 
         axi.set_title(m)
 
