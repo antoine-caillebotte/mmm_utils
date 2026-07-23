@@ -8,6 +8,12 @@ repos:
     rev: v0.6.9
     hooks:
       - id: ruff-format
+  - repo: https://github.com/osprey-oss/deptry.git
+    rev: 0.25.0
+    hooks:
+      - id: deptry
+        entry: poetry run deptry .
+        # args: ["--ignore", "DEP001"]
 
 
   - repo: local
