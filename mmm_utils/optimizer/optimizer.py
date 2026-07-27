@@ -296,7 +296,7 @@ class Optimizer:
         budget_bounds: list[tuple[float, float]],
         budget_total: float | int,
         constant_budget: bool = True,
-    ):
+    ) -> tuple[np.ndarray, object]:
         """Run constrained budget optimization using SLSQP.
 
         Parameters

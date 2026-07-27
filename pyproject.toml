@@ -1,5 +1,5 @@
 [project]
-name = "mmm-utils"
+name = "mmm_utils"
 description = ""
 authors = [
     {name = "antoine-caillebotte",email = "caillebotte.antoine@cospirit.com"}

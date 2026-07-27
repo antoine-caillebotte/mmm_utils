@@ -275,4 +275,11 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
         list[str]
             List of expressions to compute after sampling.
         """
-        return self.beta_priors.expressions_to_compute + ["total_media_contribution"]
+        default_expressions = [
+            "total_media_contribution",
+            "media_contribution",
+            "yearly_seasonality_contribution",
+            "control_contribution",
+            "media_transformed",
+        ]
+        return self.beta_priors.expressions_to_compute + default_expressions

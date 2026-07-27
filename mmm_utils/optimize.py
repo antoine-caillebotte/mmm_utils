@@ -150,7 +150,7 @@ def get_recommended_budget(  # pylint: disable=too-many-arguments
     *,
     constant_budget: bool = True,
     verbatim: bool = False,
-) -> dict[str, float]:
+) -> dict[str, np.ndarray]:
     """Optimize the budget allocation over a future campaign horizon.
 
     Parameters
