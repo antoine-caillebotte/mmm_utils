@@ -1,7 +1,5 @@
 """MMM utilities package"""
 
-from .holidays import create_holiday_columns
-
 from .modeling import adstocks, MMM, MMMConfig, fourier_features
 
 from .optimizer import Optimizer
@@ -19,5 +17,3 @@ from .optimize import (
 )
 
 from .timeline import Timeline
-
-from .utils import MixMediaDataCreator, compute_spend_distribution
