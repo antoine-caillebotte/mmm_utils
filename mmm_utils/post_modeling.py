@@ -239,7 +239,7 @@ def rope_probability_test(  # pylint: disable=too-many-arguments, too-many-local
             parameter_name = f"{var_name}[{coord_label}]"
             _compute_row(parameter_name, var_name, samples)
 
-    rope_df = pd.DataFrame(rows).set_index("parameter").sort_index()
+    rope_df = pd.DataFrame(rows).set_index("parameter").sort_index().reset_index()
 
     data_logger.clear()
     data_logger.record(rope_df)

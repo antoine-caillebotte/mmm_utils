@@ -591,7 +591,8 @@ def plot_summary_contributions_per_media(
         ax.set_xticks(x)
 
     ax.set_ylabel("Contribution (%)")
-    ax.legend(title="Timelines", bbox_to_anchor=(1.01, 1), loc="upper left")
+    if not is_single:
+        ax.legend(title="Timelines", bbox_to_anchor=(1.01, 1), loc="upper left")
 
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
