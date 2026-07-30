@@ -21,7 +21,7 @@ type ParamLike = (
 )
 
 
-def max_abs_scaler(x: np.ndarray) -> np.ndarray:
+def max_abs_scaler(x: np.ndarray):
     """Scale data by its maximum absolute value.
 
     Parameters

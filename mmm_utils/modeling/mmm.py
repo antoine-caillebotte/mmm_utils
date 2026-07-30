@@ -511,5 +511,5 @@ class MMM:  # pylint: disable=too-many-instance-attributes
                 var_names=self.config.expressions_to_compute,
             )
 
-        self.idata = self.idata.map_over_datasets(lambda ds: ds.map(np.asarray))
+        self.idata.posterior = self.idata.posterior.map(lambda ar: np.asarray(ar))
         return self.idata
