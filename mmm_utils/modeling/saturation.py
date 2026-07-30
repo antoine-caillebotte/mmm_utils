@@ -8,20 +8,14 @@ parameters so they can be used directly inside PyMC/PyTensor computation graphs.
 from dataclasses import dataclass
 from typing import Literal
 
+import pymc as pm
+import pymc.dims as pmd
 import pytensor.xtensor.math as ptxmath
+from pymc.logprob.utils import CheckParameterValue
 from pytensor.xtensor.type import as_xtensor
 
-import pymc.dims as pmd
-import pymc as pm
-
-
-from .utils import (
-    ParamLike,
-    ArrayLike,
-    CheckParameterValue,
-)
-
 from .transform import Transform, validate_params
+from .utils import ArrayLike, ParamLike
 
 # disable false positive when call ptxmath functions
 # pylint: disable=too-many-function-args

@@ -7,20 +7,14 @@ It provides a flexible framework for applying adstock effects to media variables
 from dataclasses import dataclass
 from typing import Literal
 
-import pytensor.xtensor.math as ptxmath
-from pytensor.xtensor.type import as_xtensor
-
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
-
-
-from .utils import (
-    ParamLike,
-    ArrayLike,
-    CheckParameterValue,
-)
+import pytensor.xtensor.math as ptxmath
+from pymc.logprob.utils import CheckParameterValue
+from pytensor.xtensor.type import as_xtensor
 
 from .transform import Transform, validate_params
+from .utils import ArrayLike, ParamLike
 
 # disable false positive when call ptxmath functions
 # pylint: disable=too-many-function-args
