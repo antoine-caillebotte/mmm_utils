@@ -144,14 +144,12 @@ class TransformHandler:
             self.media_names, self.media_transforms
         )
         # single_group = len(adstock_groups) == 1
-        # print(adstock_groups)
 
         # if single_group:
         #     group_names = adstock_groups[0]
         #     specs = self._specs_for(group_names)
         #     spec_ref = specs[group_names[0]]
         #     l_max = self._resolve_lmax(group_names, specs)
-        #     print("spec_ref.adstock_params", spec_ref.adstock_params)
         #     params = self._build_vectorized_params(
         #         spec_ref.adstock_params,
         #         spec_ref.adstock_priors,
@@ -161,7 +159,6 @@ class TransformHandler:
         #         "media",
         #     )
         #     ad = self._make_adstock(spec_ref, params, l_max)
-        #     print(params)
         #     x_adstocked = ad(x_m)
 
         #     for j, name in enumerate(group_names):
@@ -188,7 +185,6 @@ class TransformHandler:
                     f"[{name}]",
                 )
                 ad = self._make_adstock(spec_ref, params, l_max)
-                print(params)
                 col_map[name] = ad(col)
                 self.adstocks[name] = ad
             else:
@@ -206,7 +202,6 @@ class TransformHandler:
                     grp_dim,
                 )
                 ad = self._make_adstock(spec_ref, params, l_max)
-                print(params)
                 x_grp_ad = ad(x_grp)
 
                 for j, name in enumerate(group_names):
