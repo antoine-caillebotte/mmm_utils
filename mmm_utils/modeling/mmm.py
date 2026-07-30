@@ -282,6 +282,13 @@ class MMM:  # pylint: disable=too-many-instance-attributes
 
             mu = mu + yearly_seasonality
 
+            # === SCORE MEDIA / BASELINE ===
+            _ = pmd.Deterministic(
+                "score_media_contribution",
+                value=media_contribution.sum(dim="date") / mu.sum(dim="date") * 100,
+                dims="media",
+            )
+
             # === LIKELIHOOD ===
             sigma = _make_prior("sigma", self.config.prior_sigma)
             pmd.Normal("y", mu=mu, sigma=sigma, observed=y_o, dims="date")
@@ -504,4 +511,5 @@ class MMM:  # pylint: disable=too-many-instance-attributes
                 var_names=self.config.expressions_to_compute,
             )
 
+        self.idata = self.idata.map_over_datasets(lambda ds: ds.map(np.asarray))
         return self.idata

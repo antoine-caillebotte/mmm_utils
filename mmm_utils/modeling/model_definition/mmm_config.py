@@ -281,5 +281,6 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
             "yearly_seasonality_contribution",
             "control_contribution",
             "media_transformed",
+            "score_media_contribution",
         ]
         return self.beta_priors.expressions_to_compute + default_expressions

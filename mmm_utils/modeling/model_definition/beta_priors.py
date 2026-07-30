@@ -352,7 +352,8 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
             ),
             dims=("date", "media"),
         )
-        self.expressions_to_compute.append("interaction_contributions")
+        if len(interaction_terms) != 0:
+            self.expressions_to_compute.append("interaction_contributions")
 
         return {
             "media": boost.transpose("date", "media"),
