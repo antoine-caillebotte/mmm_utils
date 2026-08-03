@@ -9,8 +9,6 @@ from pyprojroot import here
 import pandas as pd
 import numpy as np
 
-MMM_PPTX_DIR = here().parent.parent / "mmm_pptx" / "data"
-
 
 def skip_if_paused(func):
     """Decorator to skip a method call if the logger is paused.
