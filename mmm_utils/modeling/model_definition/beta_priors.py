@@ -290,9 +290,6 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
         media_idx = {m: i for i, m in enumerate(media_names)}
         ctrl_idx = {c: i for i, c in enumerate(control_names)}
 
-        # Starting with the baseline media betas, then add interaction contributions term by term
-        boost = beta_media
-
         interaction_terms = sorted(self.interaction.get_all_interaction_terms())
         # Per-term totals: term_totals[term] is, for each date, the sum
         # across every media channel `term` moderates of
@@ -301,41 +298,86 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
         # and summing across media gives TV's total interaction contribution).
         term_totals = {}
 
-        # Iterate over distinct interaction terms, not over media channels.
-        # For N media with T terms each, the original loop ran N×T isel-scalar ops.
-        # Here we run T gather ops, one per distinct term regardless of N.
-        for term in interaction_terms:
-            param_vector = self.pymc_priors[f"beta_interaction_{term}"]
+        # —————————————————————————————————————————————————————————————————————
+        # 1. Gather idx and create beta_per_media
+        # —————————————————————————————————————————————————————————————————————
 
-            if term in self.interaction.media:
-                x_term = x_m.isel(media=media_idx[term])
-            else:
-                x_term = x_c.isel(control=ctrl_idx[term])
-
-            # Gather indices are fully static (known at graph-build time):
-            # gather_idx[j] = index in param_vector for media_names[j] (0 if unused)
-            # valid_mask[j] = 1.0 if media_names[j] uses this term, else 0.0
+        # pylint:disable=missing-return-doc, missing-return-type-doc, missing-any-param-doc
+        def create_beta_per_media(inter_term):
+            param_vector = self.pymc_priors[f"beta_interaction_{inter_term}"]
             valid_mask = np.zeros(len(media_names), dtype=np.float64)
             gather_idx = np.zeros(len(media_names), dtype=np.intp)
             for j, m in enumerate(media_names):
-                if term in self.interaction.parse_formula(m).terms:
+                if inter_term in self.interaction.parse_formula(m).terms:
                     valid_mask[j] = 1.0
-                    gather_idx[j] = self.interaction.get_lhs_index(m, term)
+                    gather_idx[j] = self.interaction.get_lhs_index(m, inter_term)
 
             # One gather node for all media instead of N scalar isel nodes
             beta_per_media = as_xtensor(
                 param_vector.values[gather_idx] * valid_mask,
                 dims=("media",),
             )
+            return beta_per_media
 
-            # XTensor broadcasting: ("date",) × ("media",) → ("date", "media")
+        # —————————————————————————————————————————————————————————————————————
+        # 2. Compute interaction contributions
+        # —————————————————————————————————————————————————————————————————————
+        def get_media_interaction(term):
+            """Compute the interaction contribution for a media term."""
+            assert term in self.interaction.media
+            x_term = x_m.isel(media=media_idx[term])
+            beta_per_media = create_beta_per_media(term)
+
             interaction_contribution = x_term * beta_per_media
+            return interaction_contribution
 
-            boost = boost + interaction_contribution
-            term_totals[term] = interaction_contribution.sum(dim="media")
+        def get_control_interaction(term):
+            """Compute the interaction contribution for a control term."""
+            assert term in self.interaction.controls
+            x_term = x_c.isel(control=ctrl_idx[term])
+            beta_per_media = create_beta_per_media(term)
 
-        if "date" not in boost.dims:
-            boost = boost.broadcast_like(x_m.isel(media=0))
+            interaction_contribution = x_term * beta_per_media
+            return interaction_contribution
+
+        # pylint:enable=missing-return-doc, missing-return-type-doc, missing-any-param-doc
+
+        # Iterate over distinct interaction terms, not over media channels.
+        # For N media with T terms each, the original loop ran N×T isel-scalar ops.
+        # Here we run T gather ops, one per distinct term regardless of N.
+        media_adjusted = {"boost": [], "prod": []}
+        for term in interaction_terms:
+            if term in self.interaction.media:
+                interaction_contribution = get_media_interaction(term)
+                media_adjusted["prod"].append(interaction_contribution)
+                term_totals[term] = interaction_contribution.sum(dim="media")
+            else:
+                interaction_contribution = get_control_interaction(term)
+                media_adjusted["boost"].append(interaction_contribution)
+                term_totals[term] = interaction_contribution.sum(dim="media")
+
+        # Baseline per channel as a constant xtensor vector
+        boost = as_xtensor(
+            np.array(
+                [
+                    float(self.interaction.parse_formula(m).has_baseline)
+                    for m in media_names
+                ]
+            ),
+            dims=("media",),
+        )
+        for term_contrib in media_adjusted["boost"]:
+            print("boost")
+            boost = boost + term_contrib
+
+        beta_media_adjusted = beta_media * boost
+
+        for term_contrib in media_adjusted["prod"]:
+            print("prod")
+            beta_media_adjusted = beta_media_adjusted + term_contrib
+
+        # if "date" not in boost.dims:
+        #     boost = boost.broadcast_like(x_m.isel(media=0))
 
         # One column per media channel, same "media" dim/coords as
         # `media_contribution`: `term_totals[m]` when `m` is itself used as
@@ -356,7 +398,7 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
             self.expressions_to_compute.append("interaction_contributions")
 
         return {
-            "media": boost.transpose("date", "media"),
+            "media": beta_media_adjusted,
             "season": beta_season,
             "control": beta_control,
             "interaction_contributions": interaction_contributions,

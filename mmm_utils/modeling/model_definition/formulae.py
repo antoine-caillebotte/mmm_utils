@@ -49,16 +49,17 @@ class InteractionFormula:
     media_name: str
     raw: str
     terms: list[str] = field(init=False)
+    has_baseline: bool = field(init=False)
 
     def __post_init__(self) -> None:
-        self.terms = self._parse(self.raw)
+        self.terms, self.has_baseline = self._parse(self.raw)
 
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _parse(formula: str) -> list[str]:
+    def _parse(formula: str) -> tuple[list[str], bool]:
         """Parse the formula string into a list of interaction variable names.
 
         Parameters
@@ -68,8 +69,10 @@ class InteractionFormula:
 
         Returns
         -------
-        list[str]
-            A list of non-``"1"`` identifier tokens.
+        tuple[list[str], bool]
+            A 2-tuple ``(terms, has_baseline)`` where *terms* is the list
+            of non-``"1"`` identifier tokens and *has_baseline* is ``True``
+            when ``"1"`` appears in the formula.
 
         Raises
         ------
@@ -83,12 +86,14 @@ class InteractionFormula:
         for tok in tokens:
             if tok == "1":
                 has_baseline = True
+            elif tok == "0":
+                pass  # explicit "no baseline" marker
             elif _TERM_RE.match(tok):
                 terms.append(tok)
             else:
                 raise ValueError(
                     f"Invalid token '{tok}' in formula '{formula}'. "
-                    "Each term must be '1' or a valid Python identifier."
+                    "Each term must be '1', '0', or a valid Python identifier."
                 )
 
         if not has_baseline:
@@ -97,7 +102,7 @@ class InteractionFormula:
                 "It must contain '1' or reference at least one other media channel."
             )
 
-        return terms
+        return terms, has_baseline
 
     # ------------------------------------------------------------------
     # Public helpers
@@ -400,29 +405,29 @@ class Interaction:
             terms.update(parsed.terms)
         return terms
 
-    def get_default_controls(self) -> list[str]:
-        """Return control variables that are not referenced in any formula term.
+    # def get_default_controls(self) -> list[str]:
+    #     """Return control variables that are not referenced in any formula term.
 
-        Controls absent from all interaction formulas receive the implicit
-        default coefficient ``1`` (no modulation).  Callers can use this
-        list to inject ``"X:1"`` default entries when building the model.
+    #     Controls absent from all interaction formulas receive the implicit
+    #     default coefficient ``1`` (no modulation).  Callers can use this
+    #     list to inject ``"X:1"`` default entries when building the model.
 
-        Returns
-        -------
-        list[str]
-            Sorted list of control names not mentioned in any formula.
+    #     Returns
+    #     -------
+    #     list[str]
+    #         Sorted list of control names not mentioned in any formula.
 
-        Examples
-        --------
-        >>> ia = Interaction(
-        ...     formulas={"Y1": "1 + C1", "Y2": "1"},
-        ...     controls=["C1", "C2"],
-        ... )
-        >>> ia.get_default_controls()
-        ['C2']
-        """
-        mentioned = self.get_all_interaction_terms() & self.controls
-        return sorted(self.controls - mentioned)
+    #     Examples
+    #     --------
+    #     >>> ia = Interaction(
+    #     ...     formulas={"Y1": "1 + C1", "Y2": "1"},
+    #     ...     controls=["C1", "C2"],
+    #     ... )
+    #     >>> ia.get_default_controls()
+    #     ['C2']
+    #     """
+    #     mentioned = self.get_all_interaction_terms() & self.controls
+    #     return sorted(self.controls - mentioned)
 
     def get_unique_parameter_names(self) -> set[str]:
         """Return the set of unique PyMC variable names for interaction parameters.

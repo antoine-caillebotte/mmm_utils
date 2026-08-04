@@ -260,42 +260,42 @@ class TransformHandler:
             specs = self._specs_for(group_names)
             spec_ref = specs[group_names[0]]
 
-            if len(group_names) == 1:
-                name = group_names[0]
-                col = as_xtensor(
-                    x_ad.values[:, self.media_names.index(name)], dims=("date",)
-                )
-                params = self._build_scalar_params(
-                    spec_ref.saturation_params,
-                    spec_ref.saturation_priors,
-                    "saturation",
-                    f"[{name}]",
-                )
-                sat = self._make_saturation(spec_ref, params)
-                col_map[name] = sat(col)
-                self.saturations[name] = sat
-            else:
-                grp_dim = f"media_sgrp{grp_idx}"
-                pm.modelcontext(None).add_coords({grp_dim: group_names})
-                grp_idx_arr = np.array([self.media_names.index(n) for n in group_names])
-                x_grp = as_xtensor(x_ad.values[:, grp_idx_arr], dims=("date", grp_dim))
+            # if len(group_names) == 1:
+            #     name = group_names[0]
+            #     col = as_xtensor(
+            #         x_ad.values[:, self.media_names.index(name)], dims=("date",)
+            #     )
+            #     params = self._build_scalar_params(
+            #         spec_ref.saturation_params,
+            #         spec_ref.saturation_priors,
+            #         "saturation",
+            #         f"[{name}]",
+            #     )
+            #     sat = self._make_saturation(spec_ref, params)
+            #     col_map[name] = sat(col)
+            #     self.saturations[name] = sat
+            # else:
+            grp_dim = f"media_sgrp{grp_idx}"
+            pm.modelcontext(None).add_coords({grp_dim: group_names})
+            grp_idx_arr = np.array([self.media_names.index(n) for n in group_names])
+            x_grp = as_xtensor(x_ad.values[:, grp_idx_arr], dims=("date", grp_dim))
 
-                params = self._build_vectorized_params(
-                    spec_ref.saturation_params,
-                    spec_ref.saturation_priors,
-                    specs,
-                    "saturation",
-                    f"_sgrp{grp_idx}",
-                    grp_dim,
-                )
-                sat = self._make_saturation(spec_ref, params)
-                x_grp_sat = sat(x_grp)
+            params = self._build_vectorized_params(
+                spec_ref.saturation_params,
+                spec_ref.saturation_priors,
+                specs,
+                "saturation",
+                f"_sgrp{grp_idx}",
+                grp_dim,
+            )
+            sat = self._make_saturation(spec_ref, params)
+            x_grp_sat = sat(x_grp)
 
-                for j, name in enumerate(group_names):
-                    self.saturations[name] = self._make_saturation(
-                        spec_ref, _slice_params(params, grp_dim, j)
-                    )
-                    col_map[name] = x_grp_sat.isel(**{grp_dim: j})
+            for j, name in enumerate(group_names):
+                self.saturations[name] = self._make_saturation(
+                    spec_ref, _slice_params(params, grp_dim, j)
+                )
+                col_map[name] = x_grp_sat.isel(**{grp_dim: j})
 
         cols = [col_map[n].expand_dims(dim="media") for n in self.media_names]
         return ptx.concat(cols, dim="media")
