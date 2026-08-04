@@ -587,8 +587,8 @@ def plot_summary_contributions_per_media(
             )
         _annotate_bars(ax, ax.patches)
 
-        ax.set_xticklabels(contribution_df.index, rotation=45, ha="right")
         ax.set_xticks(x)
+        ax.set_xticklabels(contribution_df.index, rotation=45, ha="right")
 
     ax.set_ylabel("Contribution (%)")
     if not is_single:
