@@ -8,6 +8,7 @@ import warnings
 from dataclasses import dataclass, field
 
 from .beta_priors import BetaPriors
+from .formulae import InteractionCoordinates
 
 from ..prior import PriorSpec
 from ..adstocks import AdstockType
@@ -242,7 +243,9 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
             *sat_vars,
             "beta_season",
             "sigma",
-            *self.beta_priors.interaction.get_unique_parameter_names(),
+            *InteractionCoordinates(
+                self.beta_priors.interaction
+            ).get_unique_parameter_names(),
         ]
 
     @property
@@ -262,7 +265,11 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
                 "yearly_seasonality_contribution",
                 "beta_media_adjusted",
             ]
-            + list(self.beta_priors.interaction.get_unique_parameter_names())
+            + list(
+                InteractionCoordinates(
+                    self.beta_priors.interaction
+                ).get_unique_parameter_names()
+            )
             + self.var_names
         )
 

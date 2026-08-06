@@ -26,6 +26,7 @@ from .seasonality import fourier_features
 from .prior import _make_prior
 from .transform_handler import TransformHandler
 from .model_definition.mmm_config import MMMConfig
+from .model_definition.formulae import InteractionCoordinates
 
 
 @dataclass
@@ -228,8 +229,9 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             "date": self.data.date,
             "media": self.config.media_names,
             "control": self.config.control_names,
+            "control_active": self.config.beta_priors.get_control_own_effect_names(),
             "season": seas_name,
-        } | self.config.beta_priors.interaction.get_coords()
+        } | InteractionCoordinates(self.config.beta_priors.interaction).get_coords()
 
         with pm.Model(coords=coords) as self.model:
             # Register all data nodes as pm.Data so they can be swapped via
@@ -511,5 +513,5 @@ class MMM:  # pylint: disable=too-many-instance-attributes
                 var_names=self.config.expressions_to_compute,
             )
 
-        self.idata.posterior = self.idata.posterior.map(lambda ar: np.asarray(ar))
+        self.idata.posterior = self.idata.posterior.map(np.asarray)
         return self.idata
