@@ -72,7 +72,7 @@ def _make_prior(name: str, spec: PriorSpec, dims: str | tuple[str, ...] | None =
         float or np.ndarray
             Parameter value, potentially as an array if media-specific."""
         value = spec.params.get(name)
-        if isinstance(value, np.ndarray) and value.size > 1:
+        if isinstance(value, np.ndarray) and dims is not None:
             return pmd.as_xtensor(value, dims=(dims,))
         return value
 

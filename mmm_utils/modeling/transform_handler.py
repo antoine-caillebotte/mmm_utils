@@ -25,6 +25,8 @@ from .model_definition.mmm_config import (
     MediaTransformSpec,
     _compute_adstock_groups,
     _compute_saturation_groups,
+    group_dim_name,
+    group_var_suffix,
 )
 
 if TYPE_CHECKING:
@@ -35,15 +37,12 @@ __all__ = ["Transform", "validate_params", "TransformHandler"]
 
 # ── Module-level helpers ───────────────────────────────────────────────────────
 
+_DEFAULT_SPEC = MediaTransformSpec()
+
 
 def _has_dim(v, dim: str) -> bool:
     """Return ``True`` if *v* is an XTensorVariable carrying dimension *dim*."""
     return hasattr(v, "type") and hasattr(v.type, "dims") and dim in v.type.dims
-
-
-def _has_media_dim(v) -> bool:
-    """Return ``True`` if *v* is an XTensorVariable carrying a ``"media"`` dim."""
-    return _has_dim(v, "media")
 
 
 def _slice_params(params: dict, dim: str, j: int) -> dict:
@@ -74,16 +73,16 @@ class TransformHandler:
     the same saturation but differ in adstock (or vice-versa) still benefit
     from vectorized priors.
 
-    **Naming convention**:
+    **Naming convention** (see :func:`~.model_definition.mmm_config.group_dim_name`
+    and :func:`~.model_definition.mmm_config.group_var_suffix`):
 
-    * Single adstock/saturation group (all channels): ``"adstock_alpha"`` /
+    * **Single overall group** (all channels compatible): ``"adstock_alpha"`` /
       ``"saturation_lam"`` with ``dims="media"`` — backward-compatible.
-    * Multiple adstock groups, group of N≥2: ``"adstock_alpha_agrp{i}"``
-      with ``dims="media_agrp{i}"``.
-    * Multiple saturation groups, group of N≥2: ``"saturation_lam_sgrp{j}"``
-      with ``dims="media_sgrp{j}"``.
-    * Singleton group: ``"adstock_alpha[{channel}]"`` / ``"saturation_lam[{channel}]"``
-      as scalars.
+    * **Multiple groups** (any group size, including a group of one channel):
+      ``"adstock_alpha_agrp{i}"`` with ``dims="media_agrp{i}"`` for adstock,
+      ``"saturation_lam_sgrp{j}"`` with ``dims="media_sgrp{j}"`` for saturation.
+      A group of one channel still gets a length-1 vectorized dimension rather
+      than a scalar, so the naming scheme never depends on group size.
 
     Parameters
     ----------
@@ -129,7 +128,6 @@ class TransformHandler:
         """
         x_m = as_xtensor(x_m.values, dims=("date", "media"))
         x_adstocked = self._apply_adstock_phase(x_m)
-        # pmd.Deterministic("media_adstocked", value=x_adstocked, dims=("date", "media"))
         x_result = self._apply_saturation_phase(x_adstocked)
         return x_result.transpose("date", "media")
 
@@ -143,75 +141,59 @@ class TransformHandler:
         adstock_groups = _compute_adstock_groups(
             self.media_names, self.media_transforms
         )
-        # single_group = len(adstock_groups) == 1
 
-        # if single_group:
-        #     group_names = adstock_groups[0]
-        #     specs = self._specs_for(group_names)
-        #     spec_ref = specs[group_names[0]]
-        #     l_max = self._resolve_lmax(group_names, specs)
-        #     params = self._build_vectorized_params(
-        #         spec_ref.adstock_params,
-        #         spec_ref.adstock_priors,
-        #         specs,
-        #         "adstock",
-        #         "",
-        #         "media",
-        #     )
-        #     ad = self._make_adstock(spec_ref, params, l_max)
-        #     x_adstocked = ad(x_m)
+        if len(adstock_groups) == 1:
+            group_names = adstock_groups[0]
+            specs = self._specs_for(group_names)
+            spec_ref = specs[group_names[0]]
+            l_max = self._resolve_lmax(group_names, specs)
+            params = self._build_vectorized_params(
+                spec_ref.adstock_params,
+                spec_ref.adstock_priors,
+                specs,
+                "adstock",
+                "",
+                "media",
+            )
+            ad = self._make_adstock(spec_ref, params, l_max)
+            x_adstocked = ad(x_m)
 
-        #     for j, name in enumerate(group_names):
-        #         self.adstocks[name] = self._make_adstock(
-        #             spec_ref, _slice_params(params, "media", j), l_max
-        #         )
-        #     return x_adstocked.transpose("date", "media")
+            for j, name in enumerate(group_names):
+                self.adstocks[name] = self._make_adstock(
+                    spec_ref, _slice_params(params, "media", j), l_max
+                )
+            return x_adstocked.transpose("date", "media")
 
+        model = pm.modelcontext(None)
         col_map: dict[str, XTensorVariable] = {}
         for grp_idx, group_names in enumerate(adstock_groups):
             specs = self._specs_for(group_names)
             spec_ref = specs[group_names[0]]
             l_max = self._resolve_lmax(group_names, specs)
 
-            if len(group_names) == 1:
-                name = group_names[0]
-                col = as_xtensor(
-                    x_m.values[:, self.media_names.index(name)], dims=("date",)
-                )
-                params = self._build_scalar_params(
-                    spec_ref.adstock_params,
-                    spec_ref.adstock_priors,
-                    "adstock",
-                    f"[{name}]",
-                )
-                ad = self._make_adstock(spec_ref, params, l_max)
-                col_map[name] = ad(col)
-                self.adstocks[name] = ad
-            else:
-                grp_dim = f"media_agrp{grp_idx}"
-                pm.modelcontext(None).add_coords({grp_dim: group_names})
-                grp_idx_arr = np.array([self.media_names.index(n) for n in group_names])
-                x_grp = as_xtensor(x_m.values[:, grp_idx_arr], dims=("date", grp_dim))
+            grp_dim = group_dim_name("adstock", grp_idx)
+            model.add_coords({grp_dim: group_names})
+            grp_idx_arr = np.array([self.media_names.index(n) for n in group_names])
+            x_grp = as_xtensor(x_m.values[:, grp_idx_arr], dims=("date", grp_dim))
 
-                params = self._build_vectorized_params(
-                    spec_ref.adstock_params,
-                    spec_ref.adstock_priors,
-                    specs,
-                    "adstock",
-                    f"_agrp{grp_idx}",
-                    grp_dim,
+            params = self._build_vectorized_params(
+                spec_ref.adstock_params,
+                spec_ref.adstock_priors,
+                specs,
+                "adstock",
+                group_var_suffix("adstock", grp_idx),
+                grp_dim,
+            )
+            ad = self._make_adstock(spec_ref, params, l_max)
+            x_grp_ad = ad(x_grp)
+
+            for j, name in enumerate(group_names):
+                self.adstocks[name] = self._make_adstock(
+                    spec_ref, _slice_params(params, grp_dim, j), l_max
                 )
-                ad = self._make_adstock(spec_ref, params, l_max)
-                x_grp_ad = ad(x_grp)
+                col_map[name] = x_grp_ad.isel(**{grp_dim: j})
 
-                for j, name in enumerate(group_names):
-                    self.adstocks[name] = self._make_adstock(
-                        spec_ref, _slice_params(params, grp_dim, j), l_max
-                    )
-                    col_map[name] = x_grp_ad.isel(**{grp_dim: j})
-
-        cols = [col_map[n].expand_dims(dim="media") for n in self.media_names]
-        return ptx.concat(cols, dim="media")
+        return self._reassemble(col_map)
 
     # ── Phase 2: saturation ────────────────────────────────────────────────────
 
@@ -228,9 +210,8 @@ class TransformHandler:
         saturation_groups = _compute_saturation_groups(
             self.media_names, self.media_transforms
         )
-        single_group = len(saturation_groups) == 1
 
-        if single_group:
+        if len(saturation_groups) == 1:
             group_names = saturation_groups[0]
             specs = self._specs_for(group_names)
             spec_ref = specs[group_names[0]]
@@ -252,6 +233,7 @@ class TransformHandler:
                 )
             return x_result
 
+        model = pm.modelcontext(None)
         # x_adstocked must be in (date, media) order for integer slicing
         x_ad = x_adstocked.transpose("date", "media")
 
@@ -260,23 +242,8 @@ class TransformHandler:
             specs = self._specs_for(group_names)
             spec_ref = specs[group_names[0]]
 
-            # if len(group_names) == 1:
-            #     name = group_names[0]
-            #     col = as_xtensor(
-            #         x_ad.values[:, self.media_names.index(name)], dims=("date",)
-            #     )
-            #     params = self._build_scalar_params(
-            #         spec_ref.saturation_params,
-            #         spec_ref.saturation_priors,
-            #         "saturation",
-            #         f"[{name}]",
-            #     )
-            #     sat = self._make_saturation(spec_ref, params)
-            #     col_map[name] = sat(col)
-            #     self.saturations[name] = sat
-            # else:
-            grp_dim = f"media_sgrp{grp_idx}"
-            pm.modelcontext(None).add_coords({grp_dim: group_names})
+            grp_dim = group_dim_name("saturation", grp_idx)
+            model.add_coords({grp_dim: group_names})
             grp_idx_arr = np.array([self.media_names.index(n) for n in group_names])
             x_grp = as_xtensor(x_ad.values[:, grp_idx_arr], dims=("date", grp_dim))
 
@@ -285,7 +252,7 @@ class TransformHandler:
                 spec_ref.saturation_priors,
                 specs,
                 "saturation",
-                f"_sgrp{grp_idx}",
+                group_var_suffix("saturation", grp_idx),
                 grp_dim,
             )
             sat = self._make_saturation(spec_ref, params)
@@ -297,19 +264,27 @@ class TransformHandler:
                 )
                 col_map[name] = x_grp_sat.isel(**{grp_dim: j})
 
-        cols = [col_map[n].expand_dims(dim="media") for n in self.media_names]
-        return ptx.concat(cols, dim="media")
+        return self._reassemble(col_map)
 
     # ── Private: helpers ───────────────────────────────────────────────────────
 
     def _specs_for(self, names: list[str]) -> dict[str, MediaTransformSpec]:
-        return {n: self.media_transforms.get(n, MediaTransformSpec()) for n in names}
+        return {n: self.media_transforms.get(n, _DEFAULT_SPEC) for n in names}
+
+    def _reassemble(self, col_map: dict[str, XTensorVariable]) -> XTensorVariable:
+        """Concatenate per-channel columns back into canonical ``media`` order."""
+        cols = [col_map[n].expand_dims(dim="media") for n in self.media_names]
+        return ptx.concat(cols, dim="media")
 
     @staticmethod
     def _resolve_lmax(
         group_names: list[str], specs: dict[str, MediaTransformSpec]
     ) -> int:
-        """Return the unified ``l_max`` for a group, warning when values differ."""
+        """Return the unified ``l_max`` for a group, warning when values differ.
+
+        Assumes it is called from ``_apply_adstock_phase``'s group loop —
+        ``stacklevel`` is tuned to point the warning at that call site.
+        """
         lmax_values = [specs[n].adstock_params.get("l_max", 12) for n in group_names]
         l_max = max(lmax_values)
         if len(set(lmax_values)) > 1:
@@ -324,39 +299,17 @@ class TransformHandler:
     # ── Private: param builders ────────────────────────────────────────────────
 
     @staticmethod
-    def _build_scalar_params(
+    def _vectorize_fixed_params(
         fixed_params: dict,
-        prior_specs: dict[str, PriorSpec],
-        kind: str,
-        suffix: str,
-    ) -> dict:
-        """Merge fixed params with scalar (per-channel) stochastic priors."""
-        params = dict(fixed_params)
-        for pname, pspec in prior_specs.items():
-            params[pname] = _make_prior(f"{kind}_{pname}{suffix}", pspec)
-        return params
-
-    @staticmethod
-    def _build_vectorized_params(  # pylint: disable=too-many-positional-arguments, too-many-arguments
-        fixed_params: dict,
-        prior_specs: dict[str, PriorSpec],
         specs_per_channel: dict[str, MediaTransformSpec],
         kind: str,
-        suffix: str,
         grp_dim: str,
     ) -> dict:
-        """Merge fixed params with vectorized stochastic priors.
+        """Vectorize any fixed (non-stochastic) param whose literal value differs across channels.
 
-        Hyperparameters are gathered from every channel and stacked into
-        ``np.ndarray`` vectors, so a single ``pm.Distribution`` of shape
-        ``(n_channels,)`` covers all channels with per-element hyperparams.
-
-        Fixed (non-stochastic) scalar parameters are vectorized the same
-        way whenever their literal values differ across channels: two
-        channels can share a group (same adstock/saturation type, same
-        prior *kinds*) while still pinning a param like ``alpha`` to
-        different fixed values, since the grouping key ignores literal
-        fixed-param values.
+        Channels can share a group (same adstock/saturation type, same prior
+        *kinds*) while still pinning a param like ``alpha`` to different fixed
+        values, since the grouping key ignores literal fixed-param values.
         """
         channel_names = list(specs_per_channel.keys())
         params = dict(fixed_params)
@@ -373,7 +326,23 @@ class TransformHandler:
                 params[pname] = as_xtensor(
                     np.array(values, dtype=np.float64), dims=(grp_dim,)
                 )
+        return params
 
+    @staticmethod
+    def _vectorize_priors(
+        prior_specs: dict[str, PriorSpec],
+        specs_per_channel: dict[str, MediaTransformSpec],
+        kind: str,
+        suffix: str,
+        grp_dim: str,
+    ) -> dict:
+        """Stack each channel's prior hyperparameters into one vectorized ``pm.Distribution``.
+
+        A single ``pm.Distribution`` of shape ``(n_channels,)`` covers all
+        channels in the group, with one hyperparameter value per element.
+        """
+        channel_names = list(specs_per_channel.keys())
+        params = {}
         for pname, base_pspec in prior_specs.items():
             channel_pspecs = [
                 getattr(specs_per_channel[n], f"{kind}_priors")[pname]
@@ -388,6 +357,25 @@ class TransformHandler:
                 PriorSpec(base_pspec.kind, vector_hyperparams),
                 grp_dim,
             )
+        return params
+
+    @classmethod
+    def _build_vectorized_params(  # pylint: disable=too-many-positional-arguments, too-many-arguments
+        cls,
+        fixed_params: dict,
+        prior_specs: dict[str, PriorSpec],
+        specs_per_channel: dict[str, MediaTransformSpec],
+        kind: str,
+        suffix: str,
+        grp_dim: str,
+    ) -> dict:
+        """Merge fixed params with vectorized stochastic priors for one group."""
+        params = cls._vectorize_fixed_params(
+            fixed_params, specs_per_channel, kind, grp_dim
+        )
+        params.update(
+            cls._vectorize_priors(prior_specs, specs_per_channel, kind, suffix, grp_dim)
+        )
         return params
 
     # ── Private: instance factories ───────────────────────────────────────────
