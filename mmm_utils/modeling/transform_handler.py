@@ -292,7 +292,7 @@ class TransformHandler:
                 f"Channels {group_names} have different l_max values {lmax_values}. "
                 f"Using l_max={l_max} (maximum) for all channels in this adstock group.",
                 UserWarning,
-                stacklevel=4,
+                stacklevel=3,
             )
         return l_max
 

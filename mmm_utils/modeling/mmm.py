@@ -285,6 +285,7 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             mu = mu + yearly_seasonality
 
             # === SCORE MEDIA / BASELINE ===
+            # needed for pipeline checks
             _ = pmd.Deterministic(
                 "score_media_contribution",
                 value=media_contribution.sum(dim="date") / mu.sum(dim="date") * 100,

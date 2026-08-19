@@ -709,6 +709,10 @@ def plot_saturation_curves(  # pylint: disable=too-many-locals
         Dictionary mapping media channel names to their corresponding Axes objects.
     """
     fig, ax = plt.subplots(len(media) // 3 + 1, 3, figsize=(16, 5))
+
+    if len(media) // 3 == 0:
+        ax = ax[None, :]
+
     target_scale = mmm.data.scale("y")
 
     contrib = mmm.idata.posterior.media_contribution.sel(media=media).mean(
@@ -731,8 +735,11 @@ def plot_saturation_curves(  # pylint: disable=too-many-locals
             **{f"media_{m}_saturation_x": xx, f"media_{m}_saturation_y": yy}
         )
 
+        # compute adstocked spend
+        spend = data[m]
+
         axi.plot(
-            data[m],
+            spend,
             contrib.sel(media=m) * target_scale,
             "o",
             alpha=0.5,

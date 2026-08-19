@@ -222,6 +222,15 @@ class Adstock(Transform):
                 params=params,
             )
 
+        if kind == "none":
+            return GeometricAdstock(
+                dim=dim,
+                l_max=1,
+                normalize=normalize,
+                mandatory_params=["alpha"],
+                params={"alpha": 1.0},
+            )
+
         raise ValueError(
             f"Unknown adstock kind: {kind}, available options are: {AdstockType.__args__}"
         )
