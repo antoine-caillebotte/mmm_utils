@@ -77,8 +77,8 @@ class InteractionFormula:
     >>> InteractionFormula(media_name="Y", raw="1 + C:weird")
     Traceback (most recent call last):
         ...
-    ValueError: Invalid interaction mode 'weird' for term 'C' in
-                formula '1 + C:weird'. Must be 'boost' or 'product'.
+    ValueError: Invalid interaction mode 'weird' for term 'C' in formula
+        '1 + C:weird'. Must be 'boost' or 'product'.
     """
 
     media_name: str
@@ -563,9 +563,7 @@ class Interaction:
         >>> ia.get_interaction_mode("Y2")  # Y2 is a media channel → product
         'product'
         >>> ia = Interaction(
-        >>>     formulas={"Y1": "1 + C:product", "C": "1"},
-        >>>     media=["Y1"], controls=["C"],
-        >>>     )
+        ...     formulas={"Y1": "1 + C:product", "C": "1"}, media=["Y1"], controls=["C"])
         >>> ia.get_interaction_mode("C")  # C is a control but explicitly overridden
         'product'
         """

@@ -55,6 +55,56 @@ def test_get_control_own_effect_names_defaults_to_all_controls():
     assert bp.get_control_own_effect_names() == ["Promo", "trend"]
 
 
+# ---------------------------------------------------------------------------
+# BetaPriors — control prior array shape vs control_active
+# ---------------------------------------------------------------------------
+
+
+def test_control_array_prior_sized_for_all_controls_raises():
+    # 3 controls, 1 excluded -> control_active has 2 entries, not 3
+    ia = Interaction(
+        formulas={"Y1": "1 + Promo:boost"},
+        media=["Y1"],
+        controls=["Promo", "trend", "c3"],
+    )
+    with pytest.raises(ValueError, match="control.params\\['mu'\\] has length 3"):
+        BetaPriors(
+            interaction=ia,
+            priors={"beta_interaction_Promo": PriorSpec("HalfNormal", {"sigma": 1.0})},
+            controls_without_effect=["Promo"],
+            control=PriorSpec("Normal", {"mu": np.zeros(3), "sigma": 1.0}),
+        )
+
+
+def test_control_array_prior_sized_for_control_active_ok():
+    ia = Interaction(
+        formulas={"Y1": "1 + Promo:boost"},
+        media=["Y1"],
+        controls=["Promo", "trend", "c3"],
+    )
+    bp = BetaPriors(
+        interaction=ia,
+        priors={"beta_interaction_Promo": PriorSpec("HalfNormal", {"sigma": 1.0})},
+        controls_without_effect=["Promo"],
+        control=PriorSpec("Normal", {"mu": np.zeros(2), "sigma": np.ones(2)}),
+    )
+    assert bp.get_control_own_effect_names() == ["trend", "c3"]
+
+
+def test_control_scalar_prior_always_ok():
+    ia = Interaction(
+        formulas={"Y1": "1 + Promo:boost"},
+        media=["Y1"],
+        controls=["Promo", "trend", "c3"],
+    )
+    BetaPriors(
+        interaction=ia,
+        priors={"beta_interaction_Promo": PriorSpec("HalfNormal", {"sigma": 1.0})},
+        controls_without_effect=["Promo"],
+        control=PriorSpec("Normal", {"mu": 0.0, "sigma": 1.0}),
+    )
+
+
 def test_excluded_control_has_zero_standalone_beta_but_keeps_interaction_effect():
     n = 30
     rng = np.random.default_rng(0)

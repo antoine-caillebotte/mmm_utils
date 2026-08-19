@@ -42,13 +42,13 @@ def test_sharing_group_is_frozen() -> None:
 
 
 def test_sharing_group_coerce_from_tuple() -> None:
-    group = SharingGroup._coerce(("TV", "Digital", "SEA"))
+    group = SharingGroup.coerce(("TV", "Digital", "SEA"))
     assert group == SharingGroup(interact_var="TV", media=("Digital", "SEA"))
 
 
 def test_sharing_group_coerce_passthrough() -> None:
     group = SharingGroup(interact_var="TV", media=("A", "B"))
-    assert SharingGroup._coerce(group) is group
+    assert SharingGroup.coerce(group) is group
 
 
 # ---------------------------------------------------------------------------
