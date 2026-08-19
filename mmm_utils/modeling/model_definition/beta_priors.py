@@ -10,7 +10,6 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from pytensor.xtensor.type import as_xtensor
-import pytensor.xtensor as ptx
 import pymc.dims as pmd
 
 from .formulae import Interaction, InteractionCoordinates
@@ -520,7 +519,7 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
             if bucket == "boost":
                 term_totals[term] = (
                     beta_media * interaction_contribution * x_m_transformed
-                ).sum(dim="media")
+                )
             else:
                 warnings.warn(
                     f"Interaction term {term} is in 'product' mode is not yet"
@@ -538,40 +537,53 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
             dims=("media",),
         )
 
+        # 1. Apply boost contributions
         for term_contrib in media_adjusted["boost"]:
-            print("boost")
             boost = boost + term_contrib
 
         beta_media_adjusted = beta_media * boost
-
+        # 2. Apply product contributions
         for term_contrib in media_adjusted["prod"]:
-            print("prod")
             beta_media_adjusted = beta_media_adjusted + term_contrib
 
         # if "date" not in boost.dims:
         #     boost = boost.broadcast_like(x_m.isel(media=0))
 
-        # One column per media channel, same "media" dim/coords as
-        # `media_contribution`: `term_totals[m]` when `m` is itself used as
-        # an interaction term (moderates other channels), else 0.
-        zero_column = ptx.zeros_like(x_m_transformed.isel(media=0))
-        interaction_contributions = pmd.Deterministic(
-            "interaction_contributions",
-            ptx.concat(
-                [
-                    term_totals.get(m, zero_column).expand_dims(dim="media")
-                    for m in media_names
-                ],
-                dim="media",
-            ),
-            dims=("date", "media"),
-        )
-        if len(interaction_terms) != 0:
-            self.expressions_to_compute.append("interaction_contributions")
+        self.create_interaction_contributions(term_totals)
 
         return {
             "media": beta_media_adjusted,
             "season": self.pymc_priors["beta_season"],  # dim: "season"
             "control": self.get_beta_control(),
-            "interaction_contributions": interaction_contributions,
+            "interaction_contributions": None,
         }
+
+    def create_interaction_contributions(self, term_totals):
+        """Create interaction contributions for each term in term_totals.
+
+        Parameters
+        ----------
+        term_totals : dict
+            Dictionary mapping interaction terms to their corresponding contributions.
+        """
+        # One column per media channel, same "media" dim/coords as
+        # `media_contribution`: `term_totals[m]` when `m` is itself used as
+        # an interaction term (moderates other channels), else 0.
+        # zero_column = ptx.zeros_like(x_m_transformed.isel(media=0))
+        for term, value in term_totals.items():
+            name = f"{term}_interaction_contributions"
+
+            _ = pmd.Deterministic(
+                name,
+                value,
+                # ptx.concat(
+                #     [
+                #         term_totals.get(m, zero_column).expand_dims(dim="media")
+                #         for m in media_names
+                #     ],
+                #     dim="media",
+                # ),
+                dims=("date", "media"),
+            )
+            # if len(interaction_terms) != 0:
+            self.expressions_to_compute.append(name)
