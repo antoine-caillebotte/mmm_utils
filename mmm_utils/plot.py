@@ -352,6 +352,9 @@ def plot_summary_contributions(timeline, controls=None, baseline_override=None):
         One timeline object or an iterable of timeline objects.
     controls : list of str, optional
         List of control variables to exclude from the contribution calculation.
+        Each control is classified as positive or negative based on the sign of
+        its total contribution; positive controls are stacked with the other
+        bars, negative controls are shown as a red bar below the baseline.
     baseline_override : list of str, optional
         List of variables to exclude from the baseline when calculating contributions.
          If None, only the "Baseline" column will be excluded.
@@ -391,18 +394,33 @@ def plot_summary_contributions(timeline, controls=None, baseline_override=None):
             .sum()
         )
 
-        controls_contrib = timeline_contributions[controls].sum().sum()
+        positive_controls = [
+            c for c in controls if timeline_contributions[c].sum() >= 0
+        ]
+        negative_controls = [c for c in controls if timeline_contributions[c].sum() < 0]
+        positive_controls_contrib = (
+            timeline_contributions[positive_controls].sum().sum()
+        )
+        negative_controls_contrib = (
+            timeline_contributions[negative_controls].sum().sum()
+        )
 
-        total_contrib = baseline_contrib + media_contrib + controls_contrib
+        total_contrib = (
+            baseline_contrib
+            + media_contrib
+            + positive_controls_contrib
+            + negative_controls_contrib
+        )
         baseline_contrib = 100 * baseline_contrib / total_contrib
         media_contrib = 100 * media_contrib / total_contrib
-        controls_contrib = 100 * controls_contrib / total_contrib
+        positive_controls_contrib = 100 * positive_controls_contrib / total_contrib
+        negative_controls_contrib = 100 * negative_controls_contrib / total_contrib
 
         axes[i].bar(0, baseline_contrib, width=0.1, label="Baseline")
-        if controls_contrib > 0:
+        if positive_controls_contrib > 0:
             axes[i].bar(
                 0,
-                controls_contrib,
+                positive_controls_contrib,
                 width=0.1,
                 label="Controls",
                 bottom=baseline_contrib,
@@ -412,12 +430,20 @@ def plot_summary_contributions(timeline, controls=None, baseline_override=None):
             media_contrib,
             width=0.1,
             label="Media",
-            bottom=baseline_contrib + controls_contrib,
+            bottom=baseline_contrib + positive_controls_contrib,
         )
+        if negative_controls_contrib < 0:
+            axes[i].bar(
+                0,
+                negative_controls_contrib,
+                width=0.1,
+                label="Negative controls",
+                color="red",
+            )
 
         for p in axes[i].patches:
             height = p.get_height()
-            if height > 0:
+            if height != 0:
                 axes[i].annotate(
                     f"{height:.0f}%",
                     (p.get_x() + p.get_width() / 2.0, p.get_y() + height / 2.0),
