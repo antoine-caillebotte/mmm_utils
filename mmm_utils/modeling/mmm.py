@@ -104,7 +104,9 @@ class MMMDataHandler:
 
         return seas_name
 
-    def process_data(self, X, y, config: MMMConfig, rescale: bool = True):  # pylint: disable=invalid-name
+    def process_data(
+        self, X, y, config: MMMConfig, rescale: bool = True, rescale_target=True
+    ):  # pylint: disable=invalid-name
         """Extract and scale model inputs.
 
         Parameters
@@ -117,6 +119,8 @@ class MMMDataHandler:
             The MMM configuration object.
         rescale : bool, optional
             Whether to rescale media, controls, and target by their max absolute value.
+        rescale_target : bool, optional
+            Whether to rescale the target variable by its max absolute value.
         """
 
         x_media = X[config.media_names]
@@ -131,19 +135,20 @@ class MMMDataHandler:
                 zip(config.control_names, self._scales["control"])
             )
 
-            self.y, self._scales["y"] = max_abs_scaler(y)
-            self.y, self._scales["y"] = max_abs_scaler(y)
-            self._scales["y"] = float(self._scales["y"][0])
-
         else:
             self.X_media = np.asarray(x_media, dtype=np.float64)
             self.X_control = np.asarray(x_control, dtype=np.float64)
-            self.y = np.asarray(y, dtype=np.float64)
             self._scales = {
                 "media": {m: 1 for m in config.media_names},
                 "control": {c: 1 for c in config.control_names},
-                "y": 1,
             }
+
+        if rescale and rescale_target:
+            self.y, self._scales["y"] = max_abs_scaler(y)
+            self._scales["y"] = float(self._scales["y"][0])
+        else:
+            self.y = np.asarray(y, dtype=np.float64)
+            self._scales["y"] = 1
 
         self.date = X[config.date_name].to_numpy()
 
