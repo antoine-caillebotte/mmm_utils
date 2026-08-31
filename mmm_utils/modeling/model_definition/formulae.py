@@ -5,7 +5,6 @@ Configuration classes for the MMM model.
 from __future__ import annotations
 
 import re
-import warnings
 from dataclasses import dataclass, field
 
 # ---------------------------------------------------------------------------
@@ -426,13 +425,8 @@ class Interaction:
         ValueError
             If a variable is tagged explicitly in some formulas but not
             others that reference it, or if formulas disagree on its
-            explicit mode.
-
-        Warns
-        -----
-        UserWarning
-            If a variable has no explicit ``:boost``/``:product`` tag in
-            any formula.
+            explicit mode, or if a variable has no explicit
+            ``:boost``/``:product`` tag in any formula.
         """
         occurrences: dict[str, list[tuple[str, str | None]]] = {}
         for media_name, formula in self._parsed.items():
@@ -466,12 +460,10 @@ class Interaction:
                 f"'{term}' (inferred: '{self.get_interaction_mode(term)}')"
                 for term in sorted(implicit_terms)
             )
-            warnings.warn(
+            raise ValueError(
                 f"Interaction variable(s) {hints} have no explicit ':boost'/"
                 "':product' tag. Tag them explicitly, e.g. 'TV:product', to make "
-                "the mode independent of the variable's media/control role.",
-                UserWarning,
-                stacklevel=3,
+                "the mode independent of the variable's media/control role."
             )
 
     def _validate_all_terms_defined(self) -> None:
