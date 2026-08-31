@@ -4,11 +4,11 @@
 # pyright: reportOptionalSubscript=false
 
 from __future__ import annotations
+
 import dataclasses
 
 import numpy as np
 import pandas as pd
-
 import xarray as xr
 
 
@@ -25,20 +25,22 @@ class TimelineDataBuffer:
 class DataHandler:
     """Validated accessor around the raw input dataframe and column names."""
 
-    data: pd.DataFrame | None = None
-    target_name: str | None = None
-    media: list[str] | None = None
-    controls: list[str] | None = None
+    data: pd.DataFrame
+    target_name: str
+    media: list[str] = dataclasses.field(init=False)
+    controls: list[str] = dataclasses.field(init=False)
 
-    def _check_initialized(self) -> None:
-        if self.data is None:
-            raise ValueError("Data is not initialized.")
-        if self.target_name is None:
-            raise ValueError("Target name is not initialized.")
-        if self.media is None:
-            raise ValueError("Media list is not initialized.")
-        if self.controls is None:
-            raise ValueError("Controls list is not initialized.")
+    def __init__(
+        self,
+        data: pd.DataFrame,
+        target_name: str,
+        media: list[str],
+        controls: list[str],
+    ) -> None:
+        self.data = data
+        self.target_name = target_name
+        self.media = sorted(set(media))
+        self.controls = sorted(set(controls))
 
     @property
     def dates(self) -> pd.Series:
@@ -49,7 +51,6 @@ class DataHandler:
         pandas.Series
                 Series of dates from the data, converted to datetime.
         """
-        self._check_initialized()
         return pd.to_datetime(self.data["date"])
 
     @property
@@ -62,11 +63,15 @@ class DataHandler:
         pandas.Series
                 Series of target variable values from the data.
         """
-        self._check_initialized()
         return self.data[self.target_name]
 
     def __post_init__(self) -> None:
-        self._check_initialized()
+        # check if media and controls are disjoint
+        if set(self.media).intersection(set(self.controls)):
+            raise ValueError(
+                "Media and controls must be disjoint lists. "
+                f"Found overlapping columns: {set(self.media).intersection(set(self.controls))}"
+            )
 
         required_columns = [self.target_name, *self.media, *self.controls]
         missing_columns = [
@@ -98,13 +103,57 @@ class DataHandler:
         ValueError
             If the data is not initialized.
         """
-        if self.data is None:
-            raise ValueError("Data is not initialized.")
-        if m in self.data.columns:
-            if i < len(self.data):
-                return float(self.data[m].iloc[i])
+        if m in self.data.columns and i < len(self.data):
+            return float(self.data[m].iloc[i])
 
         return 0.0
+
+
+@dataclasses.dataclass
+class PosteriorHandler:
+    """Validated accessor around the posterior xarray dataset."""
+
+    posterior: xr.Dataset
+
+    def __post_init__(self) -> None:
+        if "date" not in self.posterior.coords:
+            raise ValueError("posterior must contain a 'date' coordinate.")
+
+    def get_reduced_contribution(self, var_name: str) -> xr.DataArray:
+        """Extract and reduce a contribution variable from the posterior.
+
+        Parameters
+        ----------
+        var_name : str
+            Name of the contribution variable to extract (e.g. ``"control"``,
+            ``"yearly_seasonality"``).
+
+        Returns
+        -------
+        xarray.DataArray
+            Reduced contribution values with dimensions ``date`` and optionally
+            ``media``.
+
+        Raises
+        ------
+        ValueError
+            If the specified contribution variable is not found in the posterior
+            dataset.
+        """
+        var_key = var_name + "_contribution"
+        dates = self.posterior.coords["date"]
+        if var_key not in self.posterior:
+            raise ValueError(
+                f"Variable '{var_key}' not found in posterior dataset. "
+                f"Available variables: {', '.join(map(str, self.posterior.data_vars.keys()))}"
+            )
+
+        out = _mean(self.posterior[var_key])
+        if len(out.coords) == 0:
+            out = out.expand_dims(date=dates)
+        if len(out.coords) == 1 and "date" in out.coords:
+            out = out.expand_dims({var_name: [var_name]}).transpose("date", var_name)
+        return out
 
 
 def _mean(x: xr.DataArray, accepted_dim=None) -> xr.DataArray:
@@ -114,14 +163,16 @@ def _mean(x: xr.DataArray, accepted_dim=None) -> xr.DataArray:
     return x.mean(dim=dims)
 
 
-def _validate_posterior_and_data_dates(posterior, data):
+def _validate_posterior_and_data_dates(
+    posterior: xr.Dataset, data: pd.DataFrame
+) -> None:
     if "date" not in posterior.coords:
         raise ValueError("posterior must contain a 'date' coordinate.")
     if "date" not in data.columns:
         raise ValueError("data must contain a 'date' column.")
 
     posterior_n_dates = int(posterior.coords["date"].size)
-    data_n_dates = int(len(data))
+    data_n_dates = len(data)
     if posterior_n_dates != data_n_dates:
         raise ValueError(
             "posterior and data must have the same number of dates: "
@@ -151,28 +202,29 @@ class Timeline:
         self,
         posterior,
         data: pd.DataFrame,
+        media: list[str],
+        controls: list[str],
         *,
-        media: list[str] | None = None,
-        controls: list[str] | None = None,
         target="y",
         target_scale: float = 1.0,
-        baseline_components=None,
+        baseline_components: list[str] | None = None,
         dim_name: dict[str, str] | None = None,
     ) -> None:
         _validate_posterior_and_data_dates(posterior, data)
 
-        self._posterior = posterior
-        self._data = DataHandler(
-            data, target, media=media or [], controls=controls or []
-        )
+        self._posterior = PosteriorHandler(posterior)
+        self._data = DataHandler(data, target, media=media, controls=controls)
 
         self._target_scale = target_scale
-        self._baseline_components = (
-            baseline_components
-            if baseline_components is not None
-            else self._data.controls + ["yearly_seasonality"]
+        self._baseline_components = sorted(
+            set(
+                baseline_components
+                if baseline_components is not None
+                else self._data.controls + ["yearly_seasonality"]
+            )
         )
 
+        # Check for overlapping components between baseline and controls
         overlapping_components = sorted(
             set(self._baseline_components).intersection(self._data.controls)
         )
@@ -182,6 +234,7 @@ class Timeline:
                 f"Found: {', '.join(overlapping_components)}"
             )
 
+        # Map logical dimension names to actual dimension names in the posterior dataset
         self._dim_name = {
             "date": "date",
             "media": "media",
@@ -322,48 +375,13 @@ class Timeline:
         out[self.target] = self._data.target.to_numpy()
         return out
 
-    def _get_reduced_contribution(self, var_name: str) -> xr.DataArray:
-        """Extract and reduce a contribution variable from the posterior.
-
-        Parameters
-        ----------
-        var_name : str
-            Name of the contribution variable to extract (e.g. ``"control"``,
-            ``"yearly_seasonality"``).
-
-        Returns
-        -------
-        xarray.DataArray
-            Reduced contribution values with dimensions ``date`` and optionally
-            ``media``.
-        """
-        var_key = var_name + "_contribution"
-        dates = self._posterior.coords["date"]
-        if var_key in self._posterior:
-            out = _mean(self._posterior[var_key])
-            if len(out.coords) == 0:
-                out = out.expand_dims(date=dates)
-            if len(out.coords) == 1 and "date" in out.coords:
-                out = out.expand_dims({var_name: [var_name]}).transpose(
-                    "date", var_name
-                )
-            return out
-
-        dates = pd.to_datetime(dates).values
-        return xr.DataArray(
-            [[0.0] for _ in range(len(dates))],
-            dims=["date", var_name],
-            coords={"date": dates, var_name: [var_name]},
-            name=var_name,
-        )
-
-    def _build_contributions(self) -> xr.Dataset:
+    def _build_contributions(self) -> tuple[xr.DataArray, xr.DataArray]:
         """Compute the contributions for all medias and baseline components,
         and the baseline timeline.
 
         Returns
         -------
-        all_contributions : xarray.Dataset
+        all_contributions : xarray.DataArray
             Dataset with dimensions ``date`` and ``media``, containing the
             contribution values for each media and baseline component
             (if not included in the baseline).
@@ -371,18 +389,18 @@ class Timeline:
             1D array with dimension ``date``, containing the total baseline
             contribution for each date.
         """
-        media = self._get_reduced_contribution(self.dim("media")).sel(
+        media = self._posterior.get_reduced_contribution(self.dim("media")).sel(
             {self.dim("media"): self._data.media}
         )
-        control = self._get_reduced_contribution(self.dim("control")).sel(
+        control = self._posterior.get_reduced_contribution(self.dim("control")).sel(
             {self.dim("control"): self._data.controls}
         )
-        yearly_seasonality = self._get_reduced_contribution(
+        yearly_seasonality = self._posterior.get_reduced_contribution(
             self.dim("yearly_seasonality")
         )
 
         baseline_timeline = (
-            self._get_reduced_contribution(self.dim("control"))
+            self._posterior.get_reduced_contribution(self.dim("control"))
             .sel(
                 {
                     self.dim("control"): [
@@ -437,25 +455,30 @@ class Timeline:
         """
         all_contributions, baseline_timeline = self._build_contributions()
 
-        timeline: dict[str, list[dict]] = {}
+        all_contributions = all_contributions.transpose(
+            self.dim("date"), self.dim("media")
+        )
         dates = all_contributions.coords[self.dim("date")].values
-        contrib = all_contributions[self.dim("media")].values
+        channels = all_contributions.coords[self.dim("media")].values
+        contrib_values = all_contributions.values
+        baseline_values = baseline_timeline.values
 
+        timeline: dict[str, list[dict]] = {}
         for i, date_val in enumerate(dates):
             entries: list[dict] = []
             date_str = pd.to_datetime(date_val).strftime("%Y-%m-%d")
 
             self._add_baseline_to_entries(
-                entries, "Baseline", outcome=baseline_timeline[i]
+                entries, "Baseline", outcome=float(baseline_values[i])
             )
 
-            for m in contrib:
-                m_contri = float(
-                    all_contributions.isel(date=i).sel({self.dim("media"): m}).values
-                )
+            for j, m in enumerate(channels):
+                m = str(m)
                 spend = self._data.get_spendi(i, m)
 
-                self._add_media_to_entries(entries, m, spend=spend, outcome=m_contri)
+                self._add_media_to_entries(
+                    entries, m, spend=spend, outcome=float(contrib_values[i, j])
+                )
 
             timeline[date_str] = entries
 
@@ -477,7 +500,7 @@ class Timeline:
         list of str
             List of control variable names.
         """
-        return self._data.controls
+        return sorted(self._data.controls)
 
     @property
     def media(self) -> list[str]:
@@ -488,7 +511,7 @@ class Timeline:
         list of str
             List of media variable names.
         """
-        return self._data.media
+        return sorted(self._data.media)
 
     @property
     def target(self) -> str:
@@ -536,100 +559,6 @@ class Timeline:
         """
         if self._buffer.spend_df is None:
             df = self._to_dataframe(value="spend")
-            df = df[["date", self.target] + self._data.media]
+            df = df[["date", self.target] + self.media]
             self._buffer.spend_df = df
         return self._buffer.spend_df.copy()
-
-    # ------------------------------------------------------------------
-    # public getters with processing
-    # ------------------------------------------------------------------
-    def get_media_roas(self) -> pd.Series:
-        """Compute Return on Ad Spend (ROAS) per media media over the full period.
-
-        ROAS is defined as total outcome divided by total spend for each media.
-        medias with zero spend receive a ROAS of ``NaN``.
-
-        Returns
-        -------
-        pandas.Series
-            Index: media name. Values: ROAS ratio.
-        """
-        total_outcome = self.outcome_df.drop(
-            columns=[self.target, "date", "Baseline"]
-        ).sum()
-        total_spend = self.spend_df.drop(
-            columns=[self.target, "date", "Baseline"]
-        ).sum()
-        roas = total_outcome / total_spend.replace(0, float("nan"))
-        roas.name = "roas"
-        return roas
-
-    def get_contribution_share(self) -> pd.DataFrame:
-        """Compute each component's share of total predicted outcome per date.
-
-        Returns
-        -------
-        pandas.DataFrame
-            Same shape as :attr:`outcome_df` (excluding the ``date`` column)
-            with values expressed as fractions of the row total.
-        """
-        df = self.outcome_df.set_index("date")
-        row_totals = df.sum(axis=1)
-        return df.div(row_totals, axis=0)
-
-    # ------------------------------------------------------------------
-    # public miscellaneous utility methods
-    # ------------------------------------------------------------------
-    def filter_date_range(
-        self,
-        start: str | pd.Timestamp,
-        end: str | pd.Timestamp,
-    ) -> Timeline:
-        """Return a new :class:`Timeline` restricted to *[start, end]*.
-
-        The new instance shares the same posterior / data but has its internal
-        timeline pre-populated with only the requested dates.
-
-        Parameters
-        ----------
-        start : str or pandas.Timestamp
-            Inclusive lower bound (``"YYYY-MM-DD"`` or Timestamp).
-        end : str or pandas.Timestamp
-            Inclusive upper bound (``"YYYY-MM-DD"`` or Timestamp).
-
-        Returns
-        -------
-        Timeline
-            Filtered :class:`Timeline` instance.
-        """
-        start_ts = pd.to_datetime(start)
-        end_ts = pd.to_datetime(end)
-
-        data_copy = self._data.data.copy()
-        date_series = pd.to_datetime(data_copy["date"])
-
-        filtered_posterior = self._posterior.loc[{"date": slice(start_ts, end_ts)}]
-
-        filtered_data = data_copy.loc[
-            (date_series >= start_ts) & (date_series <= end_ts)
-        ].copy()
-
-        return Timeline(
-            posterior=filtered_posterior,
-            data=filtered_data,
-            target_scale=self._target_scale,
-        )
-
-    def summary(self) -> pd.DataFrame:
-        """Aggregate statistics (sum, mean, std) for outcome and spend per media.
-
-        Returns
-        -------
-        pandas.DataFrame
-            Multi-level column DataFrame with top-level keys ``"outcome"`` and
-            ``"spend"``, and second-level statistics ``"sum"``, ``"mean"``,
-            ``"std"``.
-        """
-        outcome_stats = self.outcome_df.set_index("date").agg(["sum", "mean", "std"]).T
-        spend_stats = self.spend_df.set_index("date").agg(["sum", "mean", "std"]).T
-        return pd.concat({"outcome": outcome_stats, "spend": spend_stats}, axis=1)
