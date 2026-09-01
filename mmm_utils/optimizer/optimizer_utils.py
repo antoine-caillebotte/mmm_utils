@@ -1,13 +1,15 @@
 """Utility functions for MMM optimization."""
 
-from typing import Callable
+from collections.abc import Callable
 
+import numpy as np
 
 from xarray import DataTree
 from xarray import DataArray
 import arviz as az
-from pymc.model.core import Model
 
+
+from pymc.model.core import Model
 import pymc as pm
 from pymc.pytensorf import rvs_in_graph
 
@@ -125,6 +127,36 @@ def extract_response_distribution(
     return response_distribution
 
 
+def do_replacements(
+    pymc_model, name, input_variable, extra_replacements: dict | None = None
+):
+    """Replace a variable in the PyMC model graph with a given input variable.
+
+    Parameters
+    ----------
+    pymc_model : Model
+        The PyMC model containing the variable to replace.
+    name : str
+        The name of the variable to replace.
+    input_variable : Variable
+        The PyTensor variable to use as a replacement for the specified variable.
+    extra_replacements : dict, optional
+        Additional replacements to apply to the model graph, by default None.
+    Returns
+    -------
+    Model
+        A copied PyTensor graph of the model with the variable replaced.
+    """
+    replacements = {name: input_variable}
+    if extra_replacements:
+        replacements.update(extra_replacements)
+
+    return pm.do(
+        pymc_model,
+        replacements,
+    )
+
+
 def replace_variable_by_optimization_variable(
     pymc_model, name, xr_data: DataArray, extra_replacements: dict | None = None
 ):
@@ -159,13 +191,8 @@ def replace_variable_by_optimization_variable(
         name=name,
     )
 
-    replacements = {name: input_variable}
-    if extra_replacements:
-        replacements.update(extra_replacements)
-
-    return input_flat, pm.do(
-        pymc_model,
-        replacements,
+    return input_flat, do_replacements(
+        pymc_model, name, input_variable, extra_replacements
     )
 
 
@@ -229,43 +256,62 @@ def replace_variable_by_repeated_optimization_variable(
         name=f"{name}_repeated",
     )
 
-    replacements = {name: repeated_xtensor}
-    if extra_replacements:
-        replacements.update(extra_replacements)
-
-    return input_flat, pm.do(
-        pymc_model,
-        replacements,
+    return input_flat, do_replacements(
+        pymc_model, name, repeated_xtensor, extra_replacements
     )
 
 
-def replace_variable_by_constant(pymc_model, name: str, xr_data: DataArray):
-    """Replace a model variable with a fixed xarray-backed xtensor.
+def replace_variable_by_sparse_optimization_variable(
+    pymc_model, name, xr_data: DataArray, extra_replacements: dict | None = None
+):
+    """Replace a variable in the PyMC model graph with an optimization variable.
 
     Parameters
     ----------
     pymc_model : Model
         The PyMC model containing the variable to replace.
     name : str
-        Name of the variable to replace.
+        The name of the variable to replace.
     xr_data : xarray.DataArray
-        Constant data used as replacement. Its shape and dims must be
-        compatible with the target variable in the graph.
-
+        The xarray DataArray containing the data for the variable,
+        used to determine the shape and dimensions of the optimization variable.
+    extra_replacements : dict, optional
+        Additional replacements to apply to the model graph, by default None.
     Returns
     -------
-    Model
-        A copied PyMC model graph where ``name`` is replaced by ``xr_data``.
+    tuple
+        A tuple containing the optimization variable (as an xtensor)
+        and the PyTensor graph of the model with the variable replaced.
     """
+    mask = ~xr_data.isnull().values
+
+    flat_indices = np.flatnonzero(mask)
+    n_nonzero = flat_indices.size
+
+    input_flat = xtensor(
+        name=f"{name}_flat",
+        shape=(n_nonzero,),
+        dims=(f"{name}_flat",),
+    )
+
+    dense_flat = pt.full(
+        (mask.size,),
+        0.0,
+        dtype=input_flat.values.dtype,  # pylint: disable=E1101, no-member
+    )
+    dense_flat = pt.set_subtensor(
+        dense_flat[flat_indices],
+        input_flat.values,  # pylint: disable=E1101, no-member
+    )
+
     input_variable = as_xtensor(
-        pt.as_tensor_variable(xr_data.values),
+        pt.reshape(dense_flat, xr_data.shape),  # pylint: disable=E1101, no-member
         dims=xr_data.dims,
         name=name,
     )
 
-    return pm.do(
-        pymc_model,
-        {name: input_variable},
+    return input_flat, do_replacements(
+        pymc_model, name, input_variable, extra_replacements
     )
 
 

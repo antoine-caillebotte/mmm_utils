@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 
-from .optimizer import Optimizer
+from .optimizer import Optimizer, OptimisableCampaign, CampaignModes
 from .modeling.mmm import MMM
 
 
@@ -89,7 +89,10 @@ def get_budget_bounds(
 
 
 def get_optimizer(
-    mmm: MMM, campaign_period: int, budget_by_media: dict[str, float]
+    mmm: MMM,
+    campaign_period: int,
+    budget_by_media: dict[str, float],
+    campaign_mode: CampaignModes,
 ) -> Optimizer:
     """Build and configure an :class:`~mmm_utils.optimizer.Optimizer` for a campaign.
 
@@ -103,6 +106,8 @@ def get_optimizer(
         Campaign duration in weeks.
     budget_by_media : dict[str, float]
         Reference spend per channel, in original (unscaled) units.
+    campaign_mode : CampaignModes
+        Campaign mode, either constant budget or time-varying budget.
 
     Returns
     -------
@@ -111,13 +116,18 @@ def get_optimizer(
     """
     media_scales = mmm.data.scale("media")
     starting_date = pd.Timestamp(np.max(mmm.data.date)) + pd.Timedelta(weeks=1)
+    if campaign_mode == CampaignModes.SPARSE:
+        starting_date = pd.Timestamp(np.min(mmm.data.date))
 
-    optimizer = Optimizer(mmm)
-    optimizer.set_campaign(
+    campaign = OptimisableCampaign(
         starting_date=starting_date,
-        campaign_period=campaign_period,
+        period=campaign_period,
         budget_by_media={m: b / media_scales[m] for m, b in budget_by_media.items()},
+        mode=campaign_mode,
+        last_campaign=mmm.data.X_media,
     )
+
+    optimizer = Optimizer.from_mmm(mmm, campaign)
     return optimizer
 
 
@@ -148,7 +158,7 @@ def get_recommended_budget(  # pylint: disable=too-many-arguments
     campaign_period: int,
     flexibility: dict[str, float] | float = 0.5,
     *,
-    constant_budget: bool = True,
+    campaign_mode: CampaignModes = CampaignModes.CONSTANT,
     verbatim: bool = False,
 ) -> dict[str, np.ndarray]:
     """Optimize the budget allocation over a future campaign horizon.
@@ -164,17 +174,16 @@ def get_recommended_budget(  # pylint: disable=too-many-arguments
     flexibility : dict[str, float] or float, default=0.5
         Allowed relative deviation around the current average spend, either
         globally or per channel.
-    constant_budget : bool, default=True
-        If True, optimize a single allocation per channel held constant over
-        the campaign. If False, optimize one allocation per channel and week.
+    campaign_mode : CampaignModes, default=CampaignModes.CONSTANT
+        Campaign mode, either constant budget or time-varying budget.
     verbatim : bool, default=False
         If True, print the optimized allocation against its bounds.
 
     Returns
     -------
-    dict[str, float]
+    dict[str, np.ndarray]
         Recommended spend per channel, in original units. For a
-        time-varying campaign (``constant_budget=False``), this is the
+        time-varying campaign (``CONSTANT=False``), this is the
         first week's allocation.
 
     Raises
@@ -188,7 +197,7 @@ def get_recommended_budget(  # pylint: disable=too-many-arguments
     flexibility = get_flexibility(media, flexibility)
     budget_bounds = get_budget_bounds(current_budget, flexibility)
 
-    optimizer = get_optimizer(mmm, campaign_period, current_budget)
+    optimizer = get_optimizer(mmm, campaign_period, current_budget, campaign_mode)
 
     budget_bounds_scaled = [
         (
@@ -204,7 +213,6 @@ def get_recommended_budget(  # pylint: disable=too-many-arguments
     optimized_budget, res_scipy = optimizer.optimize(
         budget_bounds_scaled,
         budget_total,
-        constant_budget=constant_budget,
     )
 
     if not res_scipy.success:

@@ -7,3 +7,5 @@ from .optimizer_utils import (
     define_constraint_function,
     function_with_grad,
 )
+
+from .optimisable_campaign import OptimisableCampaign, CampaignModes

@@ -3,21 +3,23 @@ a constrained optimizer for media budget allocation using PyMC and SciPy SLSQP."
 
 from warnings import warn
 
-import xarray as xr
-import pandas as pd
+from dataclasses import dataclass
 
 import numpy as np
+import arviz as az
+
 from scipy.optimize import minimize
+import pymc
 
 from pytensor.graph.basic import Variable
-import pytensor.tensor as pt
-from pytensor.xtensor.type import as_xtensor
+
+
+from mmm_utils.modeling.mmm import MMM
+from .optimisable_campaign import OptimisableCampaign
 
 from .optimizer_utils import (
-    replace_variable_by_optimization_variable,
-    replace_variable_by_repeated_optimization_variable,
-    extract_response_distribution,
     define_constraint_function,
+    extract_response_distribution,
     function_with_grad,
 )
 
@@ -31,9 +33,7 @@ def _utiliy_function(samples) -> Variable:
     return -samples.mean()
 
 
-def _validate_optimized_budget(
-    budget_optimized, budget_total: float | int, budget_bounds
-):
+def _validate_optimized_budget(budget_optimized, budget_total: float, budget_bounds):
     """Validate optimized allocations against budget and bound constraints."""
     if budget_optimized.sum() - budget_total < 1e-3:
         print("Budget constraint satisfied.")
@@ -49,6 +49,7 @@ def _validate_optimized_budget(
     print("Budget bounds satisfied for all media.")
 
 
+@dataclass
 class Optimizer:
     """Optimize media budget allocation for a fitted MMM.
 
@@ -59,7 +60,8 @@ class Optimizer:
     The optimizer supports two campaign modes:
 
     - constant budget per media across the whole campaign period;
-    - time-varying budget per media over the campaign period.
+    - plain: different allocation per media channel and period;
+    - sparse: sparse allocation strategy.
 
     Workflow
     --------
@@ -87,101 +89,53 @@ class Optimizer:
         Maximum adstock lag inferred from media transform configuration.
     """
 
-    def __init__(self, mmm):
-        self.model = mmm.model.copy()
-        self.idata = mmm.idata
+    model: pymc.Model
+    idata: az.InferenceData
+    campaign: OptimisableCampaign
 
+    @staticmethod
+    def from_mmm(mmm: MMM, campaign: OptimisableCampaign):
+        """Create an Optimizer instance from a fitted MMM and campaign configuration.
+
+        Parameters
+        ----------
+        mmm : MMM
+            Fitted MMM object containing the model and posterior samples.
+        campaign : OptimisableCampaign
+            Campaign configuration specifying budget allocation strategy and period.
+
+        Returns
+        -------
+        Optimizer
+            An instance of the Optimizer class initialized with the MMM model and campaign.
+
+        Raises
+        ------
+        Warning
+            If the campaign period is shorter than the maximum adstock lag, a warning is issued
+        """
         all_lmax = [
             spec.adstock_params.get("l_max", 0)
             for spec in mmm.config.media_transforms.values()
         ]
 
-        self.l_max = np.max(all_lmax)
+        l_max = np.max(all_lmax)
 
-        self._campaign_period = None
-        self._starting_date = None
-        self._budget_by_media = None
-
-    def set_campaign(
-        self,
-        starting_date: pd.Timestamp | None,
-        campaign_period: int | None,
-        budget_by_media: dict | None = None,
-    ):
-        """Set campaign inputs used by the optimization routine.
-
-        Parameters
-        ----------
-        starting_date : pd.Timestamp | None
-            Starting date of the campaign period.
-        campaign_period : int | None
-            Length of the campaign period in time steps (e.g., weeks).
-        budget_by_media : dict | None, optional
-            Mapping from media channel name to initial/reference budget value.
-        """
-        if campaign_period is not None:
-            self._campaign_period = campaign_period
-
-        if starting_date is not None:
-            self._starting_date = starting_date
-
-        if budget_by_media is not None:
-            self._budget_by_media = budget_by_media
-
-    def _check_campaign(self):
-        """Ensure all campaign inputs were configured before optimization."""
-        if not hasattr(self, "_campaign_period"):
-            raise ValueError("Campaign period not set. Please call set_campaign().")
-        if not hasattr(self, "_starting_date"):
-            raise ValueError("Starting date not set. Please call set_campaign().")
-        if not hasattr(self, "_budget_by_media"):
-            raise ValueError("Budget by media not set. Please call set_campaign().")
-
-    def create_budget_template(self, constant_budget: bool = True):
-        """Create a budget template DataArray for optimization variable injection.
-
-        Parameters
-        ----------
-        constant_budget : bool, optional
-            If True, build a single-date template (constant allocation over time).
-            If False, build one row per campaign period step.
-
-        Returns
-        -------
-        xarray.DataArray
-            Budget template with dimensions ``date`` and ``media``.
-        """
-        if constant_budget:
-            index = pd.DatetimeIndex([self._starting_date])
-        else:
-            index = pd.date_range(
-                start=self._starting_date, periods=self._campaign_period, freq="W"
+        if campaign.period < l_max:
+            warn(
+                f"Campaign period {campaign.period} is shorter than the maximum adstock"
+                f" lag {l_max}. This may lead to suboptimal budget allocation."
             )
 
-        budget = pd.DataFrame(
-            self._budget_by_media,
-            index=index,
+        optimizer = Optimizer(
+            model=mmm.model.copy(),
+            idata=mmm.idata,
+            campaign=campaign,
         )
+        return optimizer
 
-        budget = xr.DataArray(
-            budget.values,
-            coords={"media": list(budget.columns), "date": budget.index},
-            dims=["date", "media"],
-        )
-
-        print(f"✅ Budget template created :\n\t{budget}")
-
-        return budget
-
-    def create_optimization_variables(self, constant_budget: bool = True):
+    def create_optimization_variables(self):
         """Build optimization variables and objective from a budget input.
-
-        Parameters
-        ----------
-        constant_budget : bool, optional
-            If True, optimize a single allocation per media channel and repeat
-            it over the campaign horizon. If False, optimize one allocation per
-            media channel and period.
 
         Returns
         -------
@@ -194,66 +148,9 @@ class Optimizer:
               injected into the model in place of ``channel_data``.
         """
 
-        # 0. Create budget template
-        budget = self.create_budget_template(constant_budget=constant_budget)
-
-        campaign_index = pd.date_range(
-            start=self._starting_date,
-            periods=self._campaign_period,
-            freq="W",
+        optimizable_budget, optimizable_model = (
+            self.campaign.create_optimization_variables(self.model)
         )
-
-        # Keep control_data aligned with the campaign horizon.
-        # This is required when product-media interactions depend on controls.
-        control_data = np.asarray(self.model["control_data"].eval(), dtype=float)
-        n_controls = control_data.shape[1]
-        control_names = list(self.model.coords.get("control", range(n_controls)))
-
-        if constant_budget:
-            control_values = np.repeat(
-                control_data[[-1], :], self._campaign_period, axis=0
-            )
-        else:
-            if control_data.shape[0] >= self._campaign_period:
-                control_values = control_data[-self._campaign_period :, :]
-            else:
-                control_values = np.repeat(
-                    control_data[[-1], :], self._campaign_period, axis=0
-                )
-
-        control_template = xr.DataArray(
-            control_values,
-            coords={"date": campaign_index, "control": control_names},
-            dims=["date", "control"],
-        )
-
-        control_xtensor = as_xtensor(
-            pt.as_tensor_variable(control_template.values),
-            dims=control_template.dims,
-            name="control_data",
-        )
-
-        extra_replacements = {"control_data": control_xtensor}
-
-        if constant_budget:
-            optimizable_budget, optimizable_model = (
-                replace_variable_by_repeated_optimization_variable(
-                    self.model,
-                    "channel_data",
-                    budget,
-                    n_repeat=self._campaign_period,
-                    extra_replacements=extra_replacements,
-                )
-            )
-        else:
-            optimizable_budget, optimizable_model = (
-                replace_variable_by_optimization_variable(
-                    self.model,
-                    "channel_data",
-                    budget,
-                    extra_replacements=extra_replacements,
-                )
-            )
 
         # _compile_objective_and_grad
         target_distribution = extract_response_distribution(
@@ -287,7 +184,7 @@ class Optimizer:
             return budget_bounds
 
         media_idx = np.stack(
-            [np.arange(len(budget_bounds))] * self._campaign_period, axis=0
+            [np.arange(len(budget_bounds))] * self.campaign.period, axis=0
         ).flatten()
         return [budget_bounds[idx] for idx in media_idx]
 
@@ -295,7 +192,6 @@ class Optimizer:
         self,
         budget_bounds: list[tuple[float, float]],
         budget_total: float | int,
-        constant_budget: bool = True,
     ) -> tuple[np.ndarray, object]:
         """Run constrained budget optimization using SLSQP.
 
@@ -307,9 +203,6 @@ class Optimizer:
             vector.
         budget_total : float | int
             Total budget to be allocated across all channels and time periods.
-        constant_budget : bool
-            Whether to optimize with a constant budget across time (True) or
-            with a different budget for each time step (False).
 
         Returns
         -------
@@ -318,20 +211,18 @@ class Optimizer:
             and the raw SciPy optimization result.
         """
 
-        self._check_campaign()
-
         print("=" * 50 + "\n\t Starting Optimization\n" + "=" * 50)
 
-        optimizable_target, optimizable_budget = self.create_optimization_variables(
-            constant_budget=constant_budget
+        optimizable_target, optimizable_budget = (
+            self.campaign.create_optimization_variables(self.model)
         )
 
         f = function_with_grad(optimizable_budget, optimizable_target)
 
-        if constant_budget:
+        if self.campaign.mode == "constant":
             constraint = define_constraint_function(
                 optimizable_budget,
-                lambda x: budget_total - self._campaign_period * x.sum(),
+                lambda x: budget_total - self.campaign.period * x.sum(),
                 constraint_type="eq",
             )
         else:
@@ -344,34 +235,26 @@ class Optimizer:
         def track_progress(xk):  # pylint: disable=W0612
             obj_val, _ = f(xk)
             print(
-                f"⌛Budget {np.array(xk).sum():.4f}, "
+                f"\t⌛Budget {np.array(xk).sum():.4f}, "
                 f"Remaining Budget {float(constraint['fun'](xk)):.2e}, "
                 f"Objective {float(obj_val):.2e}, "
             )
 
-        final_budget_shape = (self._campaign_period, len(self._budget_by_media))
+            print()
 
-        # x0 intiatilization
-        if constant_budget:
-            x0 = np.zeros(shape=len(self._budget_by_media), dtype=float).flatten()
-        else:
-            x0 = np.zeros(shape=final_budget_shape, dtype=float).flatten()
-
-        print()
         res = minimize(
             f,
-            x0=x0,
+            x0=self.campaign.create_initial_flattened_budget(),
             jac=True,
             method="SLSQP",
-            bounds=self.get_bound_for_budget(budget_bounds, constant_budget),
+            bounds=self.get_bound_for_budget(
+                budget_bounds, self.campaign.mode == "constant"
+            ),
             constraints=[constraint],
             callback=track_progress,
         )
 
-        if constant_budget:
-            budget_optimized = np.tile(res.x, (self._campaign_period, 1))
-        else:
-            budget_optimized = res.x.reshape(final_budget_shape)
+        budget_optimized = self.campaign.format_budget_optimized(res.x)
 
         _validate_optimized_budget(budget_optimized, budget_total, budget_bounds)
 
