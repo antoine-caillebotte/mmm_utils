@@ -200,7 +200,6 @@ def replace_variable_by_repeated_optimization_variable(
     pymc_model,
     name,
     xr_data: DataArray,
-    n_repeat,
     extra_replacements: dict | None = None,
 ):
     """Replace a variable in the PyMC model graph with a repeated optimization variable.
@@ -214,8 +213,6 @@ def replace_variable_by_repeated_optimization_variable(
     xr_data : xarray.DataArray
         The xarray DataArray containing the data for the variable,
         used to determine the shape and dimensions of the optimization variable.
-    n_repeat : int
-        The number of times to repeat the optimization variable along the new dimension.
     extra_replacements : dict, optional
         Additional replacements to apply to the model graph, by default None.
 
@@ -234,30 +231,27 @@ def replace_variable_by_repeated_optimization_variable(
 
     """
     assert len(xr_data.shape) == 2, "Expected xr_data to have 2 dimensions"
-    assert (
-        xr_data.shape[0] == 1
-    ), "Expected the first dimension of xr_data to have size 1 for broadcasting"
 
     input_flat = xtensor(
         name=f"{name}_flat",
-        shape=(xr_data.size,),
+        shape=(xr_data.shape[1],),
         dims=(f"{name}_flat",),
     )
 
     repeated_values = pt.repeat(
         input_flat.values[None, ...],  # pylint: disable=E1101, no-member
-        repeats=n_repeat,
+        repeats=xr_data.shape[0],
         axis=0,
     )
 
-    repeated_xtensor = as_xtensor(
+    input_variable = as_xtensor(
         repeated_values,
         dims=xr_data.dims,
         name=f"{name}_repeated",
     )
 
     return input_flat, do_replacements(
-        pymc_model, name, repeated_xtensor, extra_replacements
+        pymc_model, name, input_variable, extra_replacements
     )
 
 
@@ -283,9 +277,8 @@ def replace_variable_by_sparse_optimization_variable(
         A tuple containing the optimization variable (as an xtensor)
         and the PyTensor graph of the model with the variable replaced.
     """
-    mask = ~xr_data.isnull().values
-
-    flat_indices = np.flatnonzero(mask)
+    # mask = ~xr_data.isnull().values
+    flat_indices = np.flatnonzero(xr_data.values)
     n_nonzero = flat_indices.size
 
     input_flat = xtensor(
@@ -295,7 +288,7 @@ def replace_variable_by_sparse_optimization_variable(
     )
 
     dense_flat = pt.full(
-        (mask.size,),
+        (xr_data.size,),
         0.0,
         dtype=input_flat.values.dtype,  # pylint: disable=E1101, no-member
     )
@@ -307,7 +300,7 @@ def replace_variable_by_sparse_optimization_variable(
     input_variable = as_xtensor(
         pt.reshape(dense_flat, xr_data.shape),  # pylint: disable=E1101, no-member
         dims=xr_data.dims,
-        name=name,
+        name=f"{name}_dense",
     )
 
     return input_flat, do_replacements(

@@ -15,7 +15,7 @@ from pytensor.graph.basic import Variable
 
 
 from mmm_utils.modeling.mmm import MMM
-from .optimisable_campaign import OptimisableCampaign
+from .optimisable_campaign import OptimisableCampaign, CampaignModes
 
 from .optimizer_utils import (
     define_constraint_function,
@@ -24,7 +24,7 @@ from .optimizer_utils import (
 )
 
 
-def _utiliy_function(samples) -> Variable:
+def _utility_function(samples) -> Variable:
     """Return the scalar objective used by the optimizer.
 
     The optimization minimizes this function, so the mean response is negated
@@ -134,8 +134,8 @@ class Optimizer:
         )
         return optimizer
 
-    def create_optimization_variables(self):
-        """Build optimization variables and objective from a budget input.
+    def create_optimization_target(self):
+        """Build optimization target and objective from a budget input.
 
         Returns
         -------
@@ -159,34 +159,38 @@ class Optimizer:
             response_variable="total_media_contribution",
         )
 
-        optimizable_target = _utiliy_function(target_distribution)
+        optimizable_target = _utility_function(target_distribution)
         return optimizable_target, optimizable_budget
 
-    def get_bound_for_budget(
-        self, budget_bounds: list[tuple[float, float]], constant_budget: bool = True
-    ):
+    def get_bound_for_budget(self, budget_bounds: list[tuple[float, float]]):
         """Expand per-channel bounds to match the flattened budget vector.
 
         Parameters
         ----------
         budget_bounds : list[tuple[float, float]]
             Per-channel ``(lower, upper)`` bounds.
-        constant_budget : bool
-            Whether the optimization is performed with a constant budget across
-            time (True) or with a different budget for each time step (False).
         Returns
         -------
         list[tuple[float, float]]
             Bounds aligned with the flattened optimization vector, where each
             channel bound is repeated across the first budget dimension.
         """
-        if constant_budget:
-            return budget_bounds
+        if self.campaign.mode == CampaignModes.CONSTANT:
+            return np.array(budget_bounds)
 
         media_idx = np.stack(
             [np.arange(len(budget_bounds))] * self.campaign.period, axis=0
         ).flatten()
-        return [budget_bounds[idx] for idx in media_idx]
+
+        budget_bounds = np.array([budget_bounds[idx] for idx in media_idx])
+
+        if self.campaign.mode == CampaignModes.PLAIN:
+            return budget_bounds
+
+        flat_indices = np.flatnonzero(self.campaign.budget_template)
+        x = budget_bounds[flat_indices]
+
+        return x
 
     def optimize(
         self,
@@ -213,13 +217,11 @@ class Optimizer:
 
         print("=" * 50 + "\n\t Starting Optimization\n" + "=" * 50)
 
-        optimizable_target, optimizable_budget = (
-            self.campaign.create_optimization_variables(self.model)
-        )
+        optimizable_target, optimizable_budget = self.create_optimization_target()
 
         f = function_with_grad(optimizable_budget, optimizable_target)
 
-        if self.campaign.mode == "constant":
+        if self.campaign.mode == CampaignModes.CONSTANT:
             constraint = define_constraint_function(
                 optimizable_budget,
                 lambda x: budget_total - self.campaign.period * x.sum(),
@@ -242,14 +244,15 @@ class Optimizer:
 
             print()
 
+        x0 = self.campaign.create_initial_flattened_budget()
+        bounds = self.get_bound_for_budget(budget_bounds)
+
         res = minimize(
             f,
-            x0=self.campaign.create_initial_flattened_budget(),
+            x0=x0,
             jac=True,
             method="SLSQP",
-            bounds=self.get_bound_for_budget(
-                budget_bounds, self.campaign.mode == "constant"
-            ),
+            bounds=bounds,
             constraints=[constraint],
             callback=track_progress,
         )

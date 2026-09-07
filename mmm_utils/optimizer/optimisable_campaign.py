@@ -2,7 +2,7 @@
 and CampaignModes enum for budget optimization."""
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, auto
 
 import numpy as np
 import pandas as pd
@@ -20,9 +20,9 @@ from .optimizer_utils import (
 class CampaignModes(Enum):
     """Campaign modes for budget optimization."""
 
-    CONSTANT = 1
-    PLAIN = 2
-    SPARSE = 3
+    PLAIN = auto()
+    CONSTANT = auto()
+    SPARSE = auto()
 
 
 @dataclass
@@ -51,6 +51,12 @@ class OptimisableCampaign:
     budget_template: xr.DataArray = field(init=False)
 
     def __post_init__(self):
+        self.mode = CampaignModes(self.mode.value)  # ensure enum type
+        assert isinstance(self.mode, CampaignModes), "Invalid campaign mode."
+        assert {m: m for m in CampaignModes}[
+            self.mode
+        ], "campaign mode must be a CampaignModes not a External one."
+
         if self.mode == CampaignModes.SPARSE:
             if self.last_campaign is None:
                 raise ValueError(
@@ -63,7 +69,7 @@ class OptimisableCampaign:
             ), "All media channels in budget_by_media must be present in last_campaign.columns."
 
             assert (
-                self.starting_date > self.last_campaign.index.min()
+                self.starting_date >= self.last_campaign.index.min()
             ), "Starting date must be after the first date in last_campaign for 'sparse' mode."
             assert (
                 self.starting_date + pd.Timedelta(weeks=self.period)
@@ -151,18 +157,8 @@ class OptimisableCampaign:
         xarray.DataArray
             Budget template with dimensions ``date`` and ``media``.
         """
-        if self.mode == CampaignModes.CONSTANT:
-            index = pd.DatetimeIndex([self.starting_date])
-        elif self.mode in [CampaignModes.PLAIN, CampaignModes.SPARSE]:
-            index = pd.date_range(
-                start=self.starting_date, periods=self.period, freq="W"
-            )
-
-        else:
-            raise ValueError(
-                f"Invalid campaign mode: {self.mode}. Expected one of: "
-                + ", ".join(CampaignModes.__members__.keys())
-            )
+        index = [self.starting_date + pd.Timedelta(weeks=k) for k in range(self.period)]
+        index = pd.DatetimeIndex(index)
 
         budget = pd.DataFrame(
             self.budget_by_media,
@@ -178,8 +174,6 @@ class OptimisableCampaign:
             dims=["date", "media"],
         )
 
-        print(f"✅ Budget template created :\n\t{budget}")
-
         return budget_template
 
     def create_initial_flattened_budget(self):
@@ -191,14 +185,14 @@ class OptimisableCampaign:
             Flattened budget vector, either 1D (constant mode) or 2D (plain/sparse mode).
         """
         if self.mode == CampaignModes.CONSTANT:
-            x0 = np.array(list(self.budget_by_media.values()), dtype=float)
+            x0 = np.array(list(self.budget_by_media.values()), dtype=float).flatten()
         elif self.mode == CampaignModes.SPARSE:
             flat_indices = np.flatnonzero(self.budget_template)
             x0 = self.budget_template.values.flatten()[flat_indices]
         else:
             x0 = self.budget_template.values.flatten()
 
-        return x0.flatten()
+        return x0
 
     def create_optimization_variables(self, model):
         """Build optimization variables and objective from a budget input.
@@ -224,10 +218,11 @@ class OptimisableCampaign:
 
         # 2. Replace channel_data with optimization variable
         replace_variable = {
-            CampaignModes.CONSTANT: replace_variable_by_repeated_optimization_variable,
             CampaignModes.PLAIN: replace_variable_by_optimization_variable,
+            CampaignModes.CONSTANT: replace_variable_by_repeated_optimization_variable,
             CampaignModes.SPARSE: replace_variable_by_sparse_optimization_variable,
         }
+
         optimizable_budget, optimizable_model = replace_variable[self.mode](
             model,
             "channel_data",

@@ -3,7 +3,8 @@
 import numpy as np
 import pandas as pd
 
-from .optimizer import Optimizer, OptimisableCampaign, CampaignModes
+from .optimizer.optimisable_campaign import OptimisableCampaign, CampaignModes
+from .optimizer.optimizer import Optimizer
 from .modeling.mmm import MMM
 
 
@@ -114,17 +115,27 @@ def get_optimizer(
     Optimizer
         Optimizer configured with the campaign inputs.
     """
+
     media_scales = mmm.data.scale("media")
     starting_date = pd.Timestamp(np.max(mmm.data.date)) + pd.Timedelta(weeks=1)
     if campaign_mode == CampaignModes.SPARSE:
         starting_date = pd.Timestamp(np.min(mmm.data.date))
+
+    last_campaign = pd.DataFrame(
+        mmm.data.X_media,
+        columns=mmm.config.media_names,
+        index=mmm.data.date,
+    )
+
+    for m in media_scales:
+        last_campaign[m] /= media_scales[m]
 
     campaign = OptimisableCampaign(
         starting_date=starting_date,
         period=campaign_period,
         budget_by_media={m: b / media_scales[m] for m, b in budget_by_media.items()},
         mode=campaign_mode,
-        last_campaign=mmm.data.X_media,
+        last_campaign=last_campaign,
     )
 
     optimizer = Optimizer.from_mmm(mmm, campaign)
