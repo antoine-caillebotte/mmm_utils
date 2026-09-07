@@ -39,8 +39,9 @@ class DataHandler:
     ) -> None:
         self.data = data
         self.target_name = target_name
-        self.media = sorted(set(media))
-        self.controls = sorted(set(controls))
+
+        self.media = media
+        self.controls = controls
 
     @property
     def dates(self) -> pd.Series:
