@@ -26,6 +26,7 @@ from .seasonality import fourier_features
 from .prior import _make_prior
 from .transform_handler import TransformHandler
 from .model_definition.mmm_config import MMMConfig
+from .model_definition.formulae import InteractionCoordinates
 
 
 @dataclass
@@ -103,7 +104,9 @@ class MMMDataHandler:
 
         return seas_name
 
-    def process_data(self, X, y, config: MMMConfig, rescale: bool = True):  # pylint: disable=invalid-name
+    def process_data(
+        self, X, y, config: MMMConfig, rescale: bool = True, rescale_target=True
+    ):  # pylint: disable=invalid-name
         """Extract and scale model inputs.
 
         Parameters
@@ -116,6 +119,8 @@ class MMMDataHandler:
             The MMM configuration object.
         rescale : bool, optional
             Whether to rescale media, controls, and target by their max absolute value.
+        rescale_target : bool, optional
+            Whether to rescale the target variable by its max absolute value.
         """
 
         x_media = X[config.media_names]
@@ -130,19 +135,20 @@ class MMMDataHandler:
                 zip(config.control_names, self._scales["control"])
             )
 
-            self.y, self._scales["y"] = max_abs_scaler(y)
-            self.y, self._scales["y"] = max_abs_scaler(y)
-            self._scales["y"] = float(self._scales["y"][0])
-
         else:
             self.X_media = np.asarray(x_media, dtype=np.float64)
             self.X_control = np.asarray(x_control, dtype=np.float64)
-            self.y = np.asarray(y, dtype=np.float64)
             self._scales = {
                 "media": {m: 1 for m in config.media_names},
                 "control": {c: 1 for c in config.control_names},
-                "y": 1,
             }
+
+        if rescale and rescale_target:
+            self.y, self._scales["y"] = max_abs_scaler(y)
+            self._scales["y"] = float(self._scales["y"][0])
+        else:
+            self.y = np.asarray(y, dtype=np.float64)
+            self._scales["y"] = 1
 
         self.date = X[config.date_name].to_numpy()
 
@@ -209,6 +215,7 @@ class MMM:  # pylint: disable=too-many-instance-attributes
         X: ArrayLike,
         y: ArrayLike,
         rescale: bool = True,
+        rescale_target: bool = True,
     ):  # pylint: disable=too-many-locals, invalid-name
         """Build the probabilistic MMM model.
 
@@ -220,16 +227,21 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             Observed target series.
         rescale : bool, optional
             Whether to rescale media, controls, and target by their max absolute value.
+        rescale_target : bool, optional
+            Whether to rescale the target variable by its max absolute value.
         """
-        self.data.process_data(X, y, config=self.config, rescale=rescale)
+        self.data.process_data(
+            X, y, config=self.config, rescale=rescale, rescale_target=rescale_target
+        )
         seas_name = self.data.build_seasonality(order=self.config.seasonality_order)
 
         coords = {
             "date": self.data.date,
             "media": self.config.media_names,
             "control": self.config.control_names,
+            "control_active": self.config.beta_priors.get_control_own_effect_names(),
             "season": seas_name,
-        } | self.config.beta_priors.interaction.get_coords()
+        } | InteractionCoordinates(self.config.beta_priors.interaction).get_coords()
 
         with pm.Model(coords=coords) as self.model:
             # Register all data nodes as pm.Data so they can be swapped via
@@ -283,6 +295,7 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             mu = mu + yearly_seasonality
 
             # === SCORE MEDIA / BASELINE ===
+            # needed for pipeline checks
             _ = pmd.Deterministic(
                 "score_media_contribution",
                 value=media_contribution.sum(dim="date") / mu.sum(dim="date") * 100,
@@ -511,5 +524,5 @@ class MMM:  # pylint: disable=too-many-instance-attributes
                 var_names=self.config.expressions_to_compute,
             )
 
-        self.idata.posterior = self.idata.posterior.map(lambda ar: np.asarray(ar))
+        self.idata.posterior = self.idata.posterior.map(np.asarray)
         return self.idata

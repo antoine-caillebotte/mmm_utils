@@ -72,7 +72,7 @@ def _make_prior(name: str, spec: PriorSpec, dims: str | tuple[str, ...] | None =
         float or np.ndarray
             Parameter value, potentially as an array if media-specific."""
         value = spec.params.get(name)
-        if isinstance(value, np.ndarray) and value.size > 1:
+        if isinstance(value, np.ndarray) and dims is not None:
             return pmd.as_xtensor(value, dims=(dims,))
         return value
 
@@ -371,6 +371,7 @@ def plot_prior_vs_posterior(  # pylint: disable=too-many-locals, too-many-argume
 
         label_name = name if name is not None else var
 
+        # ====== Prior plotting =======
         sns.kdeplot(
             prior_sample,
             ax=ax,
@@ -380,6 +381,7 @@ def plot_prior_vs_posterior(  # pylint: disable=too-many-locals, too-many-argume
             cut=0 if np.min(prior_sample) >= 0 else 3,
         )
 
+        # ====== Posterior plotting =======
         sns.kdeplot(
             posterior_sample,
             ax=ax,
@@ -387,6 +389,14 @@ def plot_prior_vs_posterior(  # pylint: disable=too-many-locals, too-many-argume
             color=f"C{i}",
             fill=False,
             cut=0 if np.min(posterior_sample) >= 0 else 3,
+        )
+        ax.vlines(
+            np.mean(posterior_sample),
+            ymin=0,
+            ymax=ax.get_ylim()[1],
+            color=f"C{i}",
+            linestyle="-",
+            linewidth=2,
         )
 
         y_max = 1.2 * ax.get_ylim()[1]
@@ -417,6 +427,7 @@ def plot_prior_vs_posterior(  # pylint: disable=too-many-locals, too-many-argume
 
         pdf_values = _prior_pdf(prior_spec, x_grid, name_idx)
 
+        # ====== PDF plotting =======
         ax.plot(
             x_grid,
             np.where(pdf_values < y_max, pdf_values, np.nan),

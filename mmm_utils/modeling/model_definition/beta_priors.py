@@ -4,15 +4,15 @@ Beta priors module for MMM models.
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 
 import numpy as np
 
 from pytensor.xtensor.type import as_xtensor
-import pytensor.xtensor as ptx
 import pymc.dims as pmd
 
-from .formulae import Interaction
+from .formulae import Interaction, InteractionCoordinates
 from ..prior import PriorSpec, _make_prior
 
 
@@ -38,14 +38,25 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
         Mapping ``{parameter_name: prior_spec}`` covering every unique
         interaction parameter produced by ``interaction``.  May be empty
         only when the interaction itself has no terms.
+    controls_without_effect : list[str], optional
+        Control variables that must remain available as data (present in
+        ``control_names``/``x_c``, usable as interaction terms) but that
+        should **not** receive their own additive ``beta_control``
+        coefficient. Typically used for a control that only makes sense as
+        a modulator of a media channel (e.g. ``"Promo:boost"``) and should
+        not also be added as a standalone regressor. Must be a subset of
+        ``interaction.controls``.
     prior_intercept : PriorSpec, optional
         Prior for the model intercept.
         Default: ``Normal(mu=0, sigma=2)``.
     prior_media : PriorSpec, optional
         Shared prior for all media baseline coefficients.
         Default: ``HalfNormal(sigma=1)``.
-    prior_control : PriorSpec, optional
-        Shared prior for all control-variable coefficients.
+    control : PriorSpec, optional
+        Prior for control-variable coefficients (dim ``"control_active"``,
+        see :meth:`get_control_own_effect_names`). Array-valued params must
+        have length ``len(get_control_own_effect_names())`` and be ordered
+        the same way — not ``len(interaction.controls)``.
         Default: ``Normal(mu=0, sigma=1)``.
     prior_sigma : PriorSpec, optional
         Prior for the observation noise standard deviation.
@@ -77,7 +88,7 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
     ... )
     >>> bp = BetaPriors(
     ...     interaction=ia,
-    ...     priors={"beta_Digital,SEA:TV": PriorSpec("HalfNormal", {"sigma": 1.0})},
+    ...     priors={"beta_interaction_TV": PriorSpec("HalfNormal", {"sigma": 1.0})},
     ... )
     >>> bp.is_well_specified
     True
@@ -87,11 +98,15 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
 
     interaction: Interaction = field(default_factory=Interaction)
     priors: dict[str, PriorSpec] = field(default_factory=dict)
+    controls_without_effect: list[str] = field(default_factory=list)
     pymc_priors: dict[str, object] = field(
         init=False, default_factory=dict, repr=False, compare=False
     )
     coords: dict[str, list[str]] = field(
         init=False, default_factory=dict, repr=False, compare=False
+    )
+    _interaction_coords: InteractionCoordinates = field(
+        init=False, repr=False, compare=False
     )
 
     media: PriorSpec = field(
@@ -114,10 +129,13 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
     # ------------------------------------------------------------------
 
     def __post_init__(self) -> None:
+        self._interaction_coords = InteractionCoordinates(self.interaction)
         self.is_well_specified = False
         self.check_priors()
+        self._validate_controls_without_effect()
+        self._validate_control_prior_shape()
 
-        # self.coords = self.interaction.get_coords() | {
+        # self.coords = self._interaction_coords.get_coords() | {
         #     "season": "season",
         #     "media": "media",
         #     "control": "control",
@@ -140,7 +158,7 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
             If any expected parameter lacks a prior, or if any key in
             ``priors`` does not correspond to a known interaction parameter.
         """
-        expected = self.interaction.get_unique_parameter_names()
+        expected = self._interaction_coords.get_unique_parameter_names()
 
         if not expected:
             self.is_well_specified = True
@@ -167,9 +185,103 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
 
         self.is_well_specified = True
 
+    def _validate_controls_without_effect(self) -> None:
+        """Validate ``controls_without_effect`` against the interaction config.
+
+        Raises
+        ------
+        ValueError
+            If any entry is not a known control variable (i.e. not in
+            ``interaction.controls``).
+
+        Warns
+        -----
+        UserWarning
+            If an entry is excluded from its own effect but is never
+            referenced as an interaction term — it would then have no
+            effect on the model at all.
+        """
+        unknown = set(self.controls_without_effect) - set(self.interaction.controls)
+        if unknown:
+            raise ValueError(
+                f"controls_without_effect contains unknown control(s): "
+                f"{sorted(unknown)}. Known controls: {sorted(self.interaction.controls)}"
+            )
+
+        inert = [
+            c
+            for c in self.controls_without_effect
+            if c not in self.interaction.get_all_interaction_terms()
+        ]
+        if inert:
+            warnings.warn(
+                f"Control(s) {sorted(inert)} are excluded from their own effect "
+                "(controls_without_effect) but are not referenced in any "
+                "interaction formula — they will have no effect on the model at all.",
+                UserWarning,
+                stacklevel=3,
+            )
+
+    def _validate_control_prior_shape(self) -> None:
+        """Check that array-valued ``control`` prior params match ``control_active``.
+
+        ``beta_control`` is built with dim ``"control_active"``
+        (:meth:`get_control_own_effect_names`), not ``"control"``
+        (``interaction.controls``). Any array-valued entry in
+        ``control.params`` must therefore have exactly
+        ``len(get_control_own_effect_names())`` elements, in that same
+        order — otherwise PyMC silently takes the array's own length for
+        ``beta_control``, which then misaligns with (or conflicts against)
+        the ``"control_active"`` coordinate registered on the model.
+
+        Raises
+        ------
+        ValueError
+            If an array-valued parameter's length does not match
+            ``len(get_control_own_effect_names())``.
+        """
+        own_effect_names = self.get_control_own_effect_names()
+        for param_name, value in self.control.params.items():
+            if isinstance(value, np.ndarray) and len(value) != len(own_effect_names):
+                raise ValueError(
+                    f"control.params['{param_name}'] has length {len(value)}, but "
+                    f"'beta_control' uses dim 'control_active' of length "
+                    f"{len(own_effect_names)} ({own_effect_names}). Size and order "
+                    "must match get_control_own_effect_names(), not "
+                    "interaction.controls."
+                )
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+
+    def get_control_own_effect_names(self) -> list[str]:
+        """Return control names that keep their own additive ``beta_control`` term.
+
+        Returns
+        -------
+        list[str]
+            ``interaction.controls`` minus ``controls_without_effect``, in
+            the original order. This is the coordinate list backing the
+            ``"control_active"`` dimension.
+
+        Examples
+        --------
+        >>> ia = Interaction(
+        ...     formulas={"Y1": "1 + Promo:boost"},
+        ...     media=["Y1"],
+        ...     controls=["Promo", "trend"],
+        ... )
+        >>> bp = BetaPriors(
+        ...     interaction=ia,
+        ...     priors={"beta_interaction_Promo": PriorSpec("HalfNormal", {"sigma": 1.0})},
+        ...     controls_without_effect=["Promo"],
+        ... )
+        >>> bp.get_control_own_effect_names()
+        ['trend']
+        """
+        excluded = set(self.controls_without_effect)
+        return [c for c in self.interaction.controls if c not in excluded]
 
     def missing_priors(self) -> set[str]:
         """Return parameter names that lack a prior entry.
@@ -184,7 +296,7 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
             Names in ``interaction.get_unique_parameter_names()`` not
             present in ``priors``.
         """
-        return self.interaction.get_unique_parameter_names() - set(self.priors)
+        return self._interaction_coords.get_unique_parameter_names() - set(self.priors)
 
     def extra_priors(self) -> set[str]:
         """Return prior keys that do not correspond to any known parameter.
@@ -195,7 +307,7 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
             Keys in ``priors`` not found in
             ``interaction.get_unique_parameter_names()``.
         """
-        return set(self.priors) - self.interaction.get_unique_parameter_names()
+        return set(self.priors) - self._interaction_coords.get_unique_parameter_names()
 
     def build_pymc_priors(self) -> None:
         """Build and register all PyMC prior variables for model coefficients.
@@ -206,7 +318,8 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
 
         - one prior per interaction coefficient in ``self.priors``
         - ``beta_media`` for media channels
-        - ``beta_control`` for control variables
+        - ``beta_control`` for control variables with their own effect
+          (dim ``"control_active"``, see :meth:`get_control_own_effect_names`)
         - ``beta_season`` for seasonal components
         """
         # Each key is "beta_interaction_{var}" → vectorized prior with dim "interaction_{var}"
@@ -219,41 +332,86 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
 
         self.pymc_priors["beta_media"] = _make_prior("beta_media", self.media, "media")
         self.pymc_priors["beta_control"] = _make_prior(
-            "beta_control", self.control, "control"
+            "beta_control", self.control, "control_active"
         )
         self.pymc_priors["beta_season"] = _make_prior(
             "beta_season", self.season, "season"
         )
 
-    def get_beta_adjusted(self, x_m, x_c) -> dict[str, ptx.XTensorVariable]:  # pylint: disable=too-many-locals
+    def get_beta_control(self):
+        """Return the full control-dim vector of control coefficients.
+
+        Returns
+        -------
+        XTensorVariable
+            Control coefficients with dim ``"control"``.  Entries for
+            controls in ``controls_without_effect`` are zeroed out, while
+            the remaining controls are taken from the ``beta_control``
+            prior (dim ``"control_active"``).
+        Raises
+        ------
+        RuntimeError
+            If called before :meth:`build_pymc_priors`.
+        """
+
+        if not self.pymc_priors:
+            raise RuntimeError("Call build_pymc_priors() before get_beta_control().")
+
+        control_names = self.interaction.controls
+
+        # beta_control (dim "control_active") only covers controls that keep
+        # their own effect; embed it into a full "control"-dim vector with 0
+        # for entries in controls_without_effect (they still get an
+        # interaction-term contribution below, just no standalone term).
+        own_effect_names = self.get_control_own_effect_names()
+        own_idx = {c: i for i, c in enumerate(own_effect_names)}
+        valid_mask = np.zeros(len(control_names), dtype=np.float64)
+        gather_idx = np.zeros(len(control_names), dtype=np.intp)
+        for j, c in enumerate(control_names):
+            if c in own_idx:
+                valid_mask[j] = 1.0
+                gather_idx[j] = own_idx[c]
+        beta_control_active = self.pymc_priors["beta_control"]
+        beta_control = as_xtensor(
+            beta_control_active.values[gather_idx] * valid_mask,
+            dims=("control",),
+        )
+        return beta_control
+
+    def get_beta_adjusted(self, x_m_transformed, x_c):  # pylint: disable=too-many-locals
         """Compute interaction-adjusted beta coefficients for all model components.
 
         For each media channel *m* with interaction formula, the effective
-        (time-varying) beta is:
+        (time-varying) beta combines two kinds of terms (see
+        :meth:`~.formulae.Interaction.get_interaction_mode`):
 
-        * formula ``"1 + Z1 + Z2"`` →
-          ``β_m · (1 + β_{m:Z1}·x_Z1 + β_{m:Z2}·x_Z2)``
-        * formula ``"0 + Z1 + Z2"`` →
-          ``β_m · (β_{m:Z1}·x_Z1 + β_{m:Z2}·x_Z2)``
-        * formula ``"1"`` (no interaction) →
-          ``β_m``
+        * ``boost`` terms multiply *m*'s own beta:
+          ``β_m · (baseline_m + Σ β_{m:Zi}·x_Zi)`` where ``baseline_m`` is
+          ``1`` if the formula has ``"1"``, else ``0``.
+        * ``product`` terms contribute an independent additive term:
+          ``+ Σ β_{m:Zj}·x_Zj``.
 
-        where ``x_Zi`` is looked up in *x_m* when *Zi* is a media channel,
-        or in *x_c* when *Zi* is a control.
+        E.g. with ``Z1`` in ``boost`` mode and ``Z2`` in ``product`` mode,
+        formula ``"1 + Z1 + Z2"`` gives
+        ``β_m · (1 + β_{m:Z1}·x_Z1) + β_{m:Z2}·x_Z2``.
+
+        ``x_Zi`` is looked up in *x_m* when *Zi* is a media channel, or in
+        *x_c* when *Zi* is a control — independently of its ``boost``/
+        ``product`` mode.
 
         Must be called inside an active ``pm.Model`` context, after
         :meth:`build_pymc_priors`.
 
         Parameters
         ----------
-        x_m : XTensorVariable
-            Media data with dims ``("date", "media")``.
+        x_m_transformed : XTensorVariable
+            Transformed media data with dims ``("date", "media")``.
         x_c : XTensorVariable
             Control data with dims ``("date", "control")``.
 
         Returns
         -------
-        dict[str, ptx.XTensorVariable]
+        dict[str, (Variable[Unknown, Unknown] | Unknown | XTensorConstant[XTensorType])]
             * **beta_adjusted_media** — dims ``("date", "media")``, one
               effective beta per channel and time step.
             * **beta_season** — season coefficients, dim ``"season"``
@@ -273,15 +431,13 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
 
         Examples
         --------
-        >>> beta_adj, beta_s, beta_c = bp.get_beta_adjusted(x_m, x_c)
-        >>> media_contribution = x_m_transformed * beta_adj
+        >>> result = bp.get_beta_adjusted(x_m_transformed, x_c)  # doctest: +SKIP
+        >>> media_contribution = x_m_transformed * result["media"]  # doctest: +SKIP
         """
         if not self.pymc_priors:
             raise RuntimeError("Call build_pymc_priors() before get_beta_adjusted().")
 
         beta_media = self.pymc_priors["beta_media"]  # dim: "media"
-        beta_season = self.pymc_priors["beta_season"]  # dim: "season"
-        beta_control = self.pymc_priors["beta_control"]  # dim: "control"
 
         media_names = self.interaction.media
         control_names = self.interaction.controls
@@ -291,12 +447,6 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
         ctrl_idx = {c: i for i, c in enumerate(control_names)}
 
         interaction_terms = sorted(self.interaction.get_all_interaction_terms())
-        # Per-term totals: term_totals[term] is, for each date, the sum
-        # across every media channel `term` moderates of
-        # x_term * beta_permedia (e.g. TV moderates SEA and Digital → the
-        # 3-column matrix x_TV * beta_permedia has TV's own column at 0,
-        # and summing across media gives TV's total interaction contribution).
-        term_totals = {}
 
         # —————————————————————————————————————————————————————————————————————
         # 1. Gather idx and create beta_per_media
@@ -310,7 +460,9 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
             for j, m in enumerate(media_names):
                 if inter_term in self.interaction.parse_formula(m).terms:
                     valid_mask[j] = 1.0
-                    gather_idx[j] = self.interaction.get_lhs_index(m, inter_term)
+                    gather_idx[j] = self._interaction_coords.get_lhs_index(
+                        m, inter_term
+                    )
 
             # One gather node for all media instead of N scalar isel nodes
             beta_per_media = as_xtensor(
@@ -325,7 +477,7 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
         def get_media_interaction(term):
             """Compute the interaction contribution for a media term."""
             assert term in self.interaction.media
-            x_term = x_m.isel(media=media_idx[term])
+            x_term = x_m_transformed.isel(media=media_idx[term])
             beta_per_media = create_beta_per_media(term)
 
             interaction_contribution = x_term * beta_per_media
@@ -345,16 +497,34 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
         # Iterate over distinct interaction terms, not over media channels.
         # For N media with T terms each, the original loop ran N×T isel-scalar ops.
         # Here we run T gather ops, one per distinct term regardless of N.
+        term_totals = {}
         media_adjusted = {"boost": [], "prod": []}
         for term in interaction_terms:
+            # create interaction_contribution for each term :
+            # prod : beta_permedia * x_term
+            # boost : beta_permedia * x_term
+            # e.g.: term = "TV"
+            # -> beta_permedia = beta_interaction_TV
+            # -> interaction_contribution = beta_permedia * x_TV
+
             if term in self.interaction.media:
                 interaction_contribution = get_media_interaction(term)
-                media_adjusted["prod"].append(interaction_contribution)
-                term_totals[term] = interaction_contribution.sum(dim="media")
             else:
                 interaction_contribution = get_control_interaction(term)
-                media_adjusted["boost"].append(interaction_contribution)
-                term_totals[term] = interaction_contribution.sum(dim="media")
+
+            mode = self.interaction.get_interaction_mode(term)
+            bucket = "prod" if mode == "product" else "boost"
+            media_adjusted[bucket].append(interaction_contribution)
+
+            if bucket == "boost":
+                term_totals[term] = (
+                    beta_media * interaction_contribution * x_m_transformed
+                )
+            else:
+                warnings.warn(
+                    f"Interaction term {term} is in 'product' mode is not yet"
+                    "supported for computing interaction_contributions. "
+                )
 
         # Baseline per channel as a constant xtensor vector
         boost = as_xtensor(
@@ -366,40 +536,54 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
             ),
             dims=("media",),
         )
+
+        # 1. Apply boost contributions
         for term_contrib in media_adjusted["boost"]:
-            print("boost")
             boost = boost + term_contrib
 
         beta_media_adjusted = beta_media * boost
-
+        # 2. Apply product contributions
         for term_contrib in media_adjusted["prod"]:
-            print("prod")
             beta_media_adjusted = beta_media_adjusted + term_contrib
 
         # if "date" not in boost.dims:
         #     boost = boost.broadcast_like(x_m.isel(media=0))
 
-        # One column per media channel, same "media" dim/coords as
-        # `media_contribution`: `term_totals[m]` when `m` is itself used as
-        # an interaction term (moderates other channels), else 0.
-        zero_column = ptx.zeros_like(x_m.isel(media=0))
-        interaction_contributions = pmd.Deterministic(
-            "interaction_contributions",
-            ptx.concat(
-                [
-                    term_totals.get(m, zero_column).expand_dims(dim="media")
-                    for m in media_names
-                ],
-                dim="media",
-            ),
-            dims=("date", "media"),
-        )
-        if len(interaction_terms) != 0:
-            self.expressions_to_compute.append("interaction_contributions")
+        self.create_interaction_contributions(term_totals)
 
         return {
             "media": beta_media_adjusted,
-            "season": beta_season,
-            "control": beta_control,
-            "interaction_contributions": interaction_contributions,
+            "season": self.pymc_priors["beta_season"],  # dim: "season"
+            "control": self.get_beta_control(),
+            "interaction_contributions": None,
         }
+
+    def create_interaction_contributions(self, term_totals):
+        """Create interaction contributions for each term in term_totals.
+
+        Parameters
+        ----------
+        term_totals : dict
+            Dictionary mapping interaction terms to their corresponding contributions.
+        """
+        # One column per media channel, same "media" dim/coords as
+        # `media_contribution`: `term_totals[m]` when `m` is itself used as
+        # an interaction term (moderates other channels), else 0.
+        # zero_column = ptx.zeros_like(x_m_transformed.isel(media=0))
+        for term, value in term_totals.items():
+            name = f"{term}_interaction_contributions"
+
+            _ = pmd.Deterministic(
+                name,
+                value,
+                # ptx.concat(
+                #     [
+                #         term_totals.get(m, zero_column).expand_dims(dim="media")
+                #         for m in media_names
+                #     ],
+                #     dim="media",
+                # ),
+                dims=("date", "media"),
+            )
+            # if len(interaction_terms) != 0:
+            self.expressions_to_compute.append(name)

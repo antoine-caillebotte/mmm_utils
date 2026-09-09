@@ -11,7 +11,11 @@ from pytensor.xtensor.type import as_xtensor
 
 from mmm_utils.modeling.mmm import MMM
 from mmm_utils.modeling.adstocks import Adstock
-from mmm_utils.modeling.model_definition.mmm_config import _compute_adstock_groups
+from mmm_utils.modeling.model_definition.mmm_config import (
+    _compute_adstock_groups,
+    group_dim_name,
+    group_var_suffix,
+)
 from mmm_utils.data_logger import data_logger
 
 
@@ -285,25 +289,20 @@ def plot_adstock_effects(data, mmm: MMM, media: list[str]):  # pylint: disable=t
     single_group = len(adstock_groups) == 1
 
     # Build channel -> (var_name, coord_dim, coord_value) for stochastic params.
-    channel_var: dict[str, dict[str, tuple[str, str | None, str | None]]] = {}
+    channel_var: dict[str, dict[str, tuple[str, str, str]]] = {}
     for grp_idx, group_names in enumerate(adstock_groups):
         for name in group_names:
             spec = mmm.config.media_transforms.get(name)
             if spec is None:
                 continue
-            param_vars: dict[str, tuple[str, str | None, str | None]] = {}
+            param_vars: dict[str, tuple[str, str, str]] = {}
             for pname in spec.adstock_priors:
                 if single_group:
                     param_vars[pname] = (f"adstock_{pname}", "media", name)
-                elif len(group_names) == 1:
-                    param_vars[pname] = (f"adstock_{pname}[{name}]", None, None)
                 else:
-                    grp_dim = f"media_agrp{grp_idx}"
-                    param_vars[pname] = (
-                        f"adstock_{pname}_agrp{grp_idx}",
-                        grp_dim,
-                        name,
-                    )
+                    grp_dim = group_dim_name("adstock", grp_idx)
+                    suffix = group_var_suffix("adstock", grp_idx)
+                    param_vars[pname] = (f"adstock_{pname}{suffix}", grp_dim, name)
             channel_var[name] = param_vars
 
     for m in media:
@@ -325,9 +324,11 @@ def plot_adstock_effects(data, mmm: MMM, media: list[str]):  # pylint: disable=t
         for pname, (var_name, coord_dim, coord_value) in channel_var.get(m, {}).items():
             if var_name not in posterior:
                 continue
-            da = posterior[var_name].mean(dim=["chain", "draw"])
-            if coord_dim is not None:
-                da = da.sel({coord_dim: coord_value})
+            da = (
+                posterior[var_name]
+                .mean(dim=["chain", "draw"])
+                .sel({coord_dim: coord_value})
+            )
             transform_params[pname] = float(da)
 
         l_max = spec.adstock_params.get("l_max", 12)
@@ -623,8 +624,7 @@ def adstock_to_half_life(mmm, media: list[str]) -> pd.DataFrame:  # pylint: disa
     single_group = len(adstock_groups) == 1
 
     # Build channel -> (var_name, coord_dim, coord_value) for stochastic alphas.
-    # coord_dim=None means the variable is a scalar (singleton group).
-    channel_var: dict[str, tuple[str, str | None, str | None]] = {}
+    channel_var: dict[str, tuple[str, str, str]] = {}
     for grp_idx, group_names in enumerate(adstock_groups):
         for name in group_names:
             spec = mmm.config.media_transforms.get(name)
@@ -632,11 +632,10 @@ def adstock_to_half_life(mmm, media: list[str]) -> pd.DataFrame:  # pylint: disa
                 continue
             if single_group:
                 channel_var[name] = ("adstock_alpha", "media", name)
-            elif len(group_names) == 1:
-                channel_var[name] = (f"adstock_alpha[{name}]", None, None)
             else:
-                grp_dim = f"media_agrp{grp_idx}"
-                channel_var[name] = (f"adstock_alpha_agrp{grp_idx}", grp_dim, name)
+                grp_dim = group_dim_name("adstock", grp_idx)
+                suffix = group_var_suffix("adstock", grp_idx)
+                channel_var[name] = (f"adstock_alpha{suffix}", grp_dim, name)
 
     posterior = mmm.idata.posterior if channel_var else None
 
@@ -648,9 +647,7 @@ def adstock_to_half_life(mmm, media: list[str]) -> pd.DataFrame:  # pylint: disa
         if var_name not in posterior:  # pylint: disable=unsupported-membership-test
             continue
         da = posterior[var_name].mean(dim=["chain", "draw"])  # pylint: disable=unsubscriptable-object
-        if coord_dim is not None:
-            da = da.sel({coord_dim: coord_value})
-        stochastic_alphas[m] = float(da)
+        stochastic_alphas[m] = float(da.sel({coord_dim: coord_value}))
 
     fixed_alphas = {
         m: mmm.config.media_transforms[m].adstock_params["alpha"]

@@ -8,6 +8,7 @@ import warnings
 from dataclasses import dataclass, field
 
 from .beta_priors import BetaPriors
+from .formulae import InteractionCoordinates
 
 from ..prior import PriorSpec
 from ..adstocks import AdstockType
@@ -121,6 +122,46 @@ def _compute_saturation_groups(
     return list(seen.values())
 
 
+_GROUP_KIND_TAG = {"adstock": "agrp", "saturation": "sgrp"}
+
+
+def group_dim_name(kind: str, grp_idx: int) -> str:
+    """Return the xtensor dimension name for group *grp_idx* of *kind*.
+
+    Parameters
+    ----------
+    kind : str
+        Either ``"adstock"`` or ``"saturation"``.
+    grp_idx : int
+        The group index (0-based).
+
+    Returns
+    -------
+    str
+        The dimension name, e.g. ``"media_agrp0"``.
+
+    """
+    return f"media_{_GROUP_KIND_TAG[kind]}{grp_idx}"
+
+
+def group_var_suffix(kind: str, grp_idx: int) -> str:
+    """Return the model variable-name suffix for group *grp_idx* of *kind*.
+
+    Parameters
+    ----------
+    kind : str
+        Either ``"adstock"`` or ``"saturation"``.
+    grp_idx : int
+        The group index (0-based).
+
+    Returns
+    -------
+    str
+        The suffix to append to the variable name, e.g. ``"_agrp0"``.
+    """
+    return f"_{_GROUP_KIND_TAG[kind]}{grp_idx}"
+
+
 def _compute_groups(
     media_names: list[str],
     media_transforms: dict[str, "MediaTransformSpec"],
@@ -190,10 +231,10 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
 
         * **Single group** (all channels compatible): one vectorized variable
           per stochastic parameter, no suffix (e.g. ``"adstock_alpha"``).
-        * **Multiple groups, group of N≥2**: suffix ``_agrp{i}`` for adstock
-          (e.g. ``"adstock_alpha_agrp0"``) and ``_sgrp{j}`` for saturation.
-        * **Singleton group**: channel-name suffix
-          (e.g. ``"adstock_alpha[TV]"``).
+        * **Multiple groups** (any group size, including groups of a single
+          channel): suffix ``_agrp{i}`` for adstock (e.g.
+          ``"adstock_alpha_agrp0"``) and ``_sgrp{j}`` for saturation — see
+          :func:`group_var_suffix`.
 
         Returns
         -------
@@ -214,26 +255,18 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
             spec = self.media_transforms.get(group_names[0], MediaTransformSpec())
             if single_adstock:
                 adstock_vars += [f"adstock_{p}" for p in spec.adstock_priors]
-            elif len(group_names) == 1:
-                n = group_names[0]
-                adstock_vars += [f"adstock_{p}[{n}]" for p in spec.adstock_priors]
             else:
-                adstock_vars += [
-                    f"adstock_{p}_agrp{grp_idx}" for p in spec.adstock_priors
-                ]
+                suffix = group_var_suffix("adstock", grp_idx)
+                adstock_vars += [f"adstock_{p}{suffix}" for p in spec.adstock_priors]
 
         sat_vars: list[str] = []
         for grp_idx, group_names in enumerate(saturation_groups):
             spec = self.media_transforms.get(group_names[0], MediaTransformSpec())
             if single_saturation:
                 sat_vars += [f"saturation_{p}" for p in spec.saturation_priors]
-            elif len(group_names) == 1:
-                n = group_names[0]
-                sat_vars += [f"saturation_{p}[{n}]" for p in spec.saturation_priors]
             else:
-                sat_vars += [
-                    f"saturation_{p}_sgrp{grp_idx}" for p in spec.saturation_priors
-                ]
+                suffix = group_var_suffix("saturation", grp_idx)
+                sat_vars += [f"saturation_{p}{suffix}" for p in spec.saturation_priors]
 
         return [
             "beta_media",
@@ -242,7 +275,9 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
             *sat_vars,
             "beta_season",
             "sigma",
-            *self.beta_priors.interaction.get_unique_parameter_names(),
+            *InteractionCoordinates(
+                self.beta_priors.interaction
+            ).get_unique_parameter_names(),
         ]
 
     @property
@@ -262,7 +297,11 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
                 "yearly_seasonality_contribution",
                 "beta_media_adjusted",
             ]
-            + list(self.beta_priors.interaction.get_unique_parameter_names())
+            + list(
+                InteractionCoordinates(
+                    self.beta_priors.interaction
+                ).get_unique_parameter_names()
+            )
             + self.var_names
         )
 
