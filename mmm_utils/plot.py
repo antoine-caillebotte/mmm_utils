@@ -291,11 +291,17 @@ def plot_contributions(  # pylint: disable=too-many-arguments,too-many-positiona
     assert "date" in x.columns, "x must contain a 'date' column."
     assert all(c in x.columns for c in channels), "All channels must be columns in x."
 
-    contributions_order = (
-        x.drop(["date", timeline.target], axis=1)
+    contributions_order_media = (
+        x.loc[:, timeline.media].sum().sort_values(ascending=ascending).index.tolist()
+    )
+    contributions_order_controls = (
+        x.loc[:, timeline.controls]
         .sum()
         .sort_values(ascending=ascending)
         .index.tolist()
+    )
+    contributions_order = (
+        ["Baseline"] + contributions_order_controls + contributions_order_media
     )
 
     if decomposition:

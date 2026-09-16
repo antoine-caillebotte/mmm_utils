@@ -561,7 +561,7 @@ def plot_posterior_predictive_y(
                 label=f"{hdi_prob:.0%} HDI",
             )
 
-            ax.plot(date, predicted_mean, color="C0")
+        ax.plot(date, predicted_mean, color="C0")
 
         _ = sns.lineplot(
             x=date,
