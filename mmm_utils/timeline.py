@@ -154,6 +154,7 @@ class PosteriorHandler:
             out = out.expand_dims(date=dates)
         if len(out.coords) == 1 and "date" in out.coords:
             out = out.expand_dims({var_name: [var_name]}).transpose("date", var_name)
+
         return out
 
 
@@ -390,18 +391,19 @@ class Timeline:
             1D array with dimension ``date``, containing the total baseline
             contribution for each date.
         """
-        media = self._posterior.get_reduced_contribution(self.dim("media")).sel(
+        media = self._posterior.get_reduced_contribution("media").sel(
             {self.dim("media"): self._data.media}
         )
-        control = self._posterior.get_reduced_contribution(self.dim("control")).sel(
+
+        control = self._posterior.get_reduced_contribution("control").sel(
             {self.dim("control"): self._data.controls}
         )
         yearly_seasonality = self._posterior.get_reduced_contribution(
-            self.dim("yearly_seasonality")
+            "yearly_seasonality"
         )
 
         baseline_timeline = (
-            self._posterior.get_reduced_contribution(self.dim("control"))
+            self._posterior.get_reduced_contribution("control")
             .sel(
                 {
                     self.dim("control"): [
