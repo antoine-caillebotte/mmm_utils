@@ -221,7 +221,8 @@ class HillSaturation(Saturation):
         n = as_xtensor(self.params["n"])
         k = as_xtensor(self.params["k"])
 
-        x_n = x / (x.max() + 1e-8)
-        x_p = ptxmath.pow(x_n, n)  # pylint: disable= too-many-function-args
-        k_p = ptxmath.pow(k, n)  # pylint: disable= too-many-function-args
+        eps = 1e-8
+        x_safe = ptxmath.maximum(x, eps)
+        x_p = ptxmath.pow(x_safe, n)  # pylint: disable=too-many-function-args
+        k_p = ptxmath.pow(k, n)  # pylint: disable=too-many-function-args
         return x_p / (k_p + x_p)
