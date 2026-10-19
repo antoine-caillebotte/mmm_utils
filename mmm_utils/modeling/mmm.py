@@ -347,7 +347,7 @@ class MMM:  # pylint: disable=too-many-instance-attributes
                 cores=cores,
                 target_accept=target_accept,
                 random_seed=self.config.random_seed,
-                nuts_sampler="numpyro",
+                nuts_sampler="nutpie",
                 return_inferencedata=True,
                 idata_kwargs={"log_likelihood": True},
             )
