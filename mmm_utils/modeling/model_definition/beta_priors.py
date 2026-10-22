@@ -9,10 +9,14 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+import pytensor.tensor as pt
+from pytensor.graph.replace import graph_replace
 from pytensor.xtensor.type import as_xtensor
+import pymc as pm
 import pymc.dims as pmd
 
 from .formulae import Interaction, InteractionCoordinates
+from .roas_priors import RoasPriors
 from ..prior import PriorSpec, _make_prior
 
 
@@ -107,6 +111,15 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
     )
     _interaction_coords: InteractionCoordinates = field(
         init=False, repr=False, compare=False
+    )
+    # Media split set by build_pymc_priors() when ROAS priors are used:
+    # coefficients of _media_roas are derived from roas_media, _media_free keep
+    # the ``media`` prior (beta_media_free).  Both empty without ROAS priors.
+    _media_roas: list[str] = field(
+        init=False, default_factory=list, repr=False, compare=False
+    )
+    _media_free: list[str] = field(
+        init=False, default_factory=list, repr=False, compare=False
     )
 
     media: PriorSpec = field(
@@ -309,7 +322,7 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
         """
         return set(self.priors) - self._interaction_coords.get_unique_parameter_names()
 
-    def build_pymc_priors(self) -> None:
+    def build_pymc_priors(self, roas_priors: RoasPriors | None = None) -> None:
         """Build and register all PyMC prior variables for model coefficients.
 
         Must be called inside an active ``pm.Model()`` context.
@@ -317,10 +330,20 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
         This method populates :attr:`pymc_priors` with:
 
         - one prior per interaction coefficient in ``self.priors``
-        - ``beta_media`` for media channels
+        - ``beta_media`` for media channels, or — when ``roas_priors`` covers
+          some channels — ``roas_media`` (dim ``"media_roas"``) and
+          ``beta_media_free`` (dim ``"media_free"``, only if some channels
+          have no ROAS prior); ``beta_media`` is then assembled later by
+          :meth:`get_beta_adjusted`
         - ``beta_control`` for control variables with their own effect
           (dim ``"control_active"``, see :meth:`get_control_own_effect_names`)
         - ``beta_season`` for seasonal components
+
+        Parameters
+        ----------
+        roas_priors : RoasPriors | None, optional
+            ROAS priors for a subset of media channels.  ``None`` or an empty
+            :class:`RoasPriors` keeps the plain ``beta_media`` prior.
         """
         # Each key is "beta_interaction_{var}" → vectorized prior with dim "interaction_{var}"
         self.pymc_priors = {
@@ -330,13 +353,179 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
             for name, spec in self.priors.items()
         }
 
-        self.pymc_priors["beta_media"] = _make_prior("beta_media", self.media, "media")
+        roas_priors = roas_priors if roas_priors is not None else RoasPriors()
+        self._media_roas = [
+            m for m in self.interaction.media if m in roas_priors.priors
+        ]
+        self._media_free = [
+            m for m in self.interaction.media if m not in roas_priors.priors
+        ]
+        if self._media_roas:
+            self._build_roas_media_priors(roas_priors)
+        else:
+            self.pymc_priors["beta_media"] = _make_prior(
+                "beta_media", self.media, "media"
+            )
+
         self.pymc_priors["beta_control"] = _make_prior(
             "beta_control", self.control, "control_active"
         )
         self.pymc_priors["beta_season"] = _make_prior(
             "beta_season", self.season, "season"
         )
+
+    def _build_roas_media_priors(self, roas_priors: RoasPriors) -> None:
+        """Create ``roas_media`` and ``beta_media_free`` for a ROAS-split media set.
+
+        Must be called inside an active ``pm.Model()`` context, after
+        ``_media_roas`` / ``_media_free`` have been set.
+
+        Parameters
+        ----------
+        roas_priors : RoasPriors
+            ROAS priors covering every channel of ``_media_roas``.
+
+        Raises
+        ------
+        ValueError
+            If ``roas_priors`` targets a channel absent from
+            ``interaction.media``.
+        """
+        unknown = [m for m in roas_priors.media_names if m not in self._media_roas]
+        if unknown:
+            raise ValueError(
+                f"roas_priors contains channels {unknown} that are not in "
+                "interaction.media"
+            )
+
+        model = pm.modelcontext(None)
+        model.add_coords({"media_roas": self._media_roas})
+        self.pymc_priors["roas_media"] = _make_prior(
+            "roas_media", roas_priors.to_prior_spec(self._media_roas), "media_roas"
+        )
+
+        if self._media_free:
+            model.add_coords({"media_free": self._media_free})
+            self.pymc_priors["beta_media_free"] = _make_prior(
+                "beta_media_free", self.media_spec_for(self._media_free), "media_free"
+            )
+
+    def media_spec_for(self, names: list[str]) -> PriorSpec:
+        """Restrict the ``media`` prior spec to a subset of channels.
+
+        Scalar hyperparameters are kept as is; per-channel arrays (one entry
+        per ``interaction.media`` channel) are sliced to ``names``.
+
+        Parameters
+        ----------
+        names : list[str]
+            Channels to keep, in the desired order.
+
+        Returns
+        -------
+        PriorSpec
+            ``media`` prior restricted to ``names``.
+
+        Raises
+        ------
+        ValueError
+            If an array hyperparameter does not have one entry per channel.
+        """
+        all_media = self.interaction.media
+        idx = np.array([all_media.index(m) for m in names], dtype=np.intp)
+        params = {}
+        for key, value in self.media.params.items():
+            if np.ndim(value) == 0:
+                params[key] = value
+            elif np.shape(value) == (len(all_media),):
+                params[key] = np.asarray(value)[idx]
+            else:
+                raise ValueError(
+                    f"media.params['{key}'] has shape {np.shape(value)}, expected "
+                    f"a scalar or one value per media channel ({len(all_media)})"
+                )
+        return PriorSpec(self.media.kind, params)
+
+    def _get_beta_media(self, base_signal, spend_scaled_for_roas, frozen_data):
+        """Return ``beta_media`` (dim ``"media"``), deriving ROAS channels from ``roas_media``.
+
+        Without ROAS priors this is the plain ``beta_media`` prior.  Otherwise,
+        for each ROAS channel *m* (no ``product`` term, see
+        :meth:`~.mmm_config.MMMConfig._validate_roas_priors`)::
+
+            contribution_m = beta_m * sum_t(base_signal_m,t)
+            roas_m         = contribution_m / spend_scaled_for_roas_m
+            => beta_m      = roas_m * spend_scaled_for_roas_m / sum_t(base_signal_m,t)
+
+        ``sum_t(base_signal)`` is evaluated on the training data
+        (``frozen_data``) so that swapping ``channel_data``/``control_data``
+        with :func:`pymc.do` (counterfactuals, budget optimisation) does not
+        recompute the coefficients.
+
+        Parameters
+        ----------
+        base_signal : XTensorVariable
+            ``x_m_transformed * boost`` with dims ``("date", "media")``.
+        spend_scaled_for_roas : np.ndarray | None
+            Total spend per channel in the target scale, ``media`` order
+            (see ``MMMDataHandler.get_spend_scaled_for_roas``).
+        frozen_data : dict | None
+            ``{data_variable: constant}`` replacements pinning the training
+            data in the denominator.
+
+        Returns
+        -------
+        XTensorVariable
+            Media coefficients with dim ``"media"``.
+
+        Raises
+        ------
+        ValueError
+            If ROAS priors are used without ``spend_scaled_for_roas`` /
+            ``frozen_data``, or if a ROAS channel has no positive spend.
+        """
+        if not self._media_roas:
+            return self.pymc_priors["beta_media"]
+
+        if spend_scaled_for_roas is None or frozen_data is None:
+            raise ValueError(
+                "spend_scaled_for_roas and frozen_data are required when "
+                "ROAS priors are used"
+            )
+
+        media_names = self.interaction.media
+        roas_idx = np.array([media_names.index(m) for m in self._media_roas])
+        spend_roas = np.asarray(spend_scaled_for_roas, dtype=np.float64)[roas_idx]
+        if np.any(spend_roas <= 0):
+            no_spend = [m for m, s in zip(self._media_roas, spend_roas) if s <= 0]
+            raise ValueError(
+                f"Channels {no_spend} have a ROAS prior but no positive spend"
+            )
+
+        base_total = graph_replace(
+            base_signal.sum(dim="date"), frozen_data, strict=False
+        ).transpose("media")
+        beta_roas = (
+            self.pymc_priors["roas_media"].values
+            * spend_roas
+            / base_total.values[roas_idx]
+        )
+
+        # Concatenate [free, roas] then permute back to canonical media order
+        parts = [beta_roas]
+        ordered = list(self._media_roas)
+        if self._media_free:
+            parts.insert(0, self.pymc_priors["beta_media_free"].values)
+            ordered = self._media_free + ordered
+        perm = np.array([ordered.index(m) for m in media_names], dtype=np.intp)
+
+        beta_media = pmd.Deterministic(
+            "beta_media",
+            as_xtensor(pt.concatenate(parts)[perm], dims=("media",)),
+            dims="media",
+        )
+        self.pymc_priors["beta_media"] = beta_media
+        return beta_media
 
     def get_beta_control(self):
         """Return the full control-dim vector of control coefficients.
@@ -378,7 +567,13 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
         )
         return beta_control
 
-    def get_beta_adjusted(self, x_m_transformed, x_c):  # pylint: disable=too-many-locals
+    def get_beta_adjusted(  # pylint: disable=too-many-locals
+        self,
+        x_m_transformed,
+        x_c,
+        spend_scaled_for_roas: np.ndarray | None = None,
+        frozen_data: dict | None = None,
+    ):
         """Compute interaction-adjusted beta coefficients for all model components.
 
         For each media channel *m* with interaction formula, the effective
@@ -408,6 +603,14 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
             Transformed media data with dims ``("date", "media")``.
         x_c : XTensorVariable
             Control data with dims ``("date", "control")``.
+        spend_scaled_for_roas : np.ndarray | None, optional
+            Total spend per channel in the target scale (``media`` order).
+            Required only when ROAS priors were passed to
+            :meth:`build_pymc_priors`.
+        frozen_data : dict | None, optional
+            ``{data_variable: constant}`` replacements pinning the training
+            data when deriving ROAS-based coefficients.  Required only when
+            ROAS priors were passed to :meth:`build_pymc_priors`.
 
         Returns
         -------
@@ -436,8 +639,6 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
         """
         if not self.pymc_priors:
             raise RuntimeError("Call build_pymc_priors() before get_beta_adjusted().")
-
-        beta_media = self.pymc_priors["beta_media"]  # dim: "media"
 
         media_names = self.interaction.media
         control_names = self.interaction.controls
@@ -497,7 +698,7 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
         # Iterate over distinct interaction terms, not over media channels.
         # For N media with T terms each, the original loop ran N×T isel-scalar ops.
         # Here we run T gather ops, one per distinct term regardless of N.
-        term_totals = {}
+        boost_contributions = {}
         media_adjusted = {"boost": [], "prod": []}
         for term in interaction_terms:
             # create interaction_contribution for each term :
@@ -517,9 +718,7 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
             media_adjusted[bucket].append(interaction_contribution)
 
             if bucket == "boost":
-                term_totals[term] = (
-                    beta_media * interaction_contribution * x_m_transformed
-                )
+                boost_contributions[term] = interaction_contribution
             else:
                 warnings.warn(
                     f"Interaction term {term} is in 'product' mode is not yet"
@@ -540,6 +739,16 @@ class BetaPriors:  # pylint: disable=too-many-instance-attributes
         # 1. Apply boost contributions
         for term_contrib in media_adjusted["boost"]:
             boost = boost + term_contrib
+
+        # boost does not depend on beta_media, so ROAS-based coefficients
+        # can be derived from the boosted signal x_m_transformed * boost.
+        beta_media = self._get_beta_media(
+            x_m_transformed * boost, spend_scaled_for_roas, frozen_data
+        )  # dim: "media"
+        term_totals = {
+            term: beta_media * contrib * x_m_transformed
+            for term, contrib in boost_contributions.items()
+        }
 
         beta_media_adjusted = beta_media * boost
         # 2. Apply product contributions

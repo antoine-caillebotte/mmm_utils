@@ -42,6 +42,27 @@ class MMMDataHandler:
 
     _scales: dict[str, float | dict[str, float]] = field(default_factory=dict)
 
+    def get_spend_scaled_for_roas(self) -> np.ndarray:
+        """Get the total media spend expressed in the target scale.
+
+        ``X_media`` holds spend divided by the per-channel media scale, and
+        contributions live in the target scale (``y / y_scale``).  Hence::
+
+            spend_€ = sum_t(X_media) * media_scale
+            roas_€  = sum_t(contribution) * y_scale / spend_€
+                    = sum_t(contribution) / (spend_€ / y_scale)
+
+        so dividing a scaled contribution by the returned value directly
+        yields a ROAS in original units (€ of target per € spent).
+
+        Returns
+        -------
+        np.ndarray
+            ``sum_t(spend_€) / y_scale`` per media channel, in ``media`` order.
+        """
+        media_scale = np.array(list(self._scales["media"].values()), dtype=np.float64)
+        return self.X_media.sum(axis=0) * media_scale / self._scales["y"]
+
     def build_pm_data(self, model: pm.Model):
         """Build PyMC data containers from processed inputs.
 
@@ -247,7 +268,17 @@ class MMM:  # pylint: disable=too-many-instance-attributes
             # Register all data nodes as pm.Data so they can be swapped via
             # pymc.do() for counterfactual / optimisation scenarios.
             x_m, x_c, x_s, y_o = self.data.build_pm_data(self.model)
-            self.config.beta_priors.build_pymc_priors()
+            self.config.beta_priors.build_pymc_priors(
+                roas_priors=self.config.roas_priors
+            )
+
+            spend_scaled_for_roas = self.data.get_spend_scaled_for_roas()
+            # Training data pinned as constants: ROAS-derived betas must not
+            # follow channel_data/control_data when swapped via pymc.do().
+            frozen_data = {
+                x_m: pmd.as_xtensor(self.data.X_media, dims=("date", "media")),
+                x_c: pmd.as_xtensor(self.data.X_control, dims=("date", "control")),
+            }
 
             # === MEDIA TRANSFORMATION ===
             # Stochastic adstock/saturation params are created as vectorized
@@ -259,7 +290,10 @@ class MMM:  # pylint: disable=too-many-instance-attributes
 
             # === BETA (with interaction adjustments) ===
             beta_adjusted = self.config.beta_priors.get_beta_adjusted(
-                x_m_transformed, x_c
+                x_m_transformed,
+                x_c,
+                spend_scaled_for_roas=spend_scaled_for_roas,
+                frozen_data=frozen_data,
             )
 
             # === MEDIA ===
@@ -272,6 +306,14 @@ class MMM:  # pylint: disable=too-many-instance-attributes
                 "total_media_contribution",
                 value=media_contribution.sum(dim="media"),
                 dims="date",
+            )
+
+            # compute roas contrib / spend
+            _ = pmd.Deterministic(
+                "roas",
+                value=media_contribution.sum(dim="date")
+                / pmd.as_xtensor(spend_scaled_for_roas, dims=("media",)),
+                dims="media",
             )
 
             mu = total_media_contribution

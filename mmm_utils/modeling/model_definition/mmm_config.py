@@ -8,6 +8,7 @@ import warnings
 from dataclasses import dataclass, field
 
 from .beta_priors import BetaPriors
+from .roas_priors import RoasPriors
 from .formulae import InteractionCoordinates
 
 from ..prior import PriorSpec
@@ -184,6 +185,7 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
     """Main configuration object for the MMM model."""
 
     beta_priors: BetaPriors = field(default_factory=BetaPriors)
+    roas_priors: RoasPriors = field(default_factory=RoasPriors)
 
     date_name: str = "date"
     media_names: list[str] = field(default_factory=list)
@@ -220,6 +222,68 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
                     f"media_names contains '{name}', but no MediaTransformSpec, "
                     "default prior will be used"
                 )
+
+        self._validate_roas_priors()
+
+    def _validate_roas_priors(self) -> None:
+        """Check that ROAS priors only target known media channels without product terms.
+
+        A ``product`` interaction adds a term independent of ``beta_media``
+        to the channel contribution, so the coefficient could no longer be
+        derived in closed form from the ROAS.
+
+        Raises
+        ------
+        TypeError
+            If ``roas_priors`` is not a :class:`RoasPriors`.
+        ValueError
+            If a ROAS prior targets a channel absent from ``media_names``, or
+            a channel whose interaction formula contains a ``product`` term.
+        """
+        if not isinstance(self.roas_priors, RoasPriors):
+            raise TypeError("roas_priors must be a RoasPriors instance")
+
+        unknown = [m for m in self.roas_priors.media_names if m not in self.media_names]
+        if unknown:
+            raise ValueError(
+                f"roas_priors contains channels {unknown} that are not in media_names"
+            )
+
+        interaction = self.beta_priors.interaction
+        for name in self.roas_priors.media_names:
+            product_terms = [
+                term
+                for term in interaction.parse_formula(name).terms
+                if interaction.get_interaction_mode(term) == "product"
+            ]
+            if product_terms:
+                raise ValueError(
+                    f"Channel '{name}' has a ROAS prior but 'product' interaction "
+                    f"terms {product_terms}; only 'boost' terms are supported "
+                    "with ROAS priors"
+                )
+
+    @property
+    def media_names_with_roas(self) -> list[str]:
+        """Media channels whose coefficient is derived from a ROAS prior.
+
+        Returns
+        -------
+        list[str]
+            Channels listed in ``roas_priors``, in ``media_names`` order.
+        """
+        return [m for m in self.media_names if m in self.roas_priors.priors]
+
+    @property
+    def media_names_without_roas(self) -> list[str]:
+        """Media channels keeping the default ``beta_priors.media`` prior.
+
+        Returns
+        -------
+        list[str]
+            Channels absent from ``roas_priors``, in ``media_names`` order.
+        """
+        return [m for m in self.media_names if m not in self.roas_priors.priors]
 
     @property
     def var_names(self) -> list[str]:
@@ -268,8 +332,17 @@ class MMMConfig:  # pylint: disable=too-many-instance-attributes
                 suffix = group_var_suffix("saturation", grp_idx)
                 sat_vars += [f"saturation_{p}{suffix}" for p in spec.saturation_priors]
 
+        # With ROAS priors, beta_media becomes a Deterministic assembled from
+        # beta_media_free (default prior) and roas_media (LogNormal on the ROAS).
+        roas_vars: list[str] = []
+        if self.media_names_with_roas:
+            roas_vars.append("roas_media")
+            if self.media_names_without_roas:
+                roas_vars.append("beta_media_free")
+
         return [
             "beta_media",
+            *roas_vars,
             "beta_control",
             *adstock_vars,
             *sat_vars,

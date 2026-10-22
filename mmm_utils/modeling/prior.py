@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 
 import re
+import warnings
 from typing import Literal
 
 import numpy as np
@@ -268,10 +269,51 @@ def _get_group_var_values(group, var: str, media: str | None) -> np.ndarray:
     return np.asarray(da.values, dtype=np.float64).reshape(-1)
 
 
-def _resolve_prior_spec_for_var(mmm, var: str, media_name: str | None) -> PriorSpec:
-    """Resolve PriorSpec from MMM config for a variable/component."""
+def _resolve_roas_prior_spec(cfg, base_var: str, media_name: str | None):
+    """Resolve the prior of ROAS-related variables for one media channel.
+
+    Returns a single-channel :class:`PriorSpec` (so that it does not depend on
+    the position of ``media_name`` in the variable's coordinates), ``None``
+    when the variable is deterministic for that channel (no analytic PDF),
+    or ``NotImplemented`` when ``base_var`` is not ROAS-related.
+    """
+    # Configs saved before ROAS priors existed have no roas_priors slot
+    roas_media = cfg.media_names_with_roas if getattr(cfg, "roas_priors", None) else []
+
+    if base_var == "roas_media":
+        if media_name not in roas_media:
+            raise ValueError(
+                f"Media '{media_name}' has no ROAS prior; "
+                f"channels with a ROAS prior: {roas_media}"
+            )
+        return cfg.roas_priors.to_prior_spec([media_name])
+    if base_var == "beta_media_free":
+        return cfg.beta_priors.media_spec_for([media_name])
+    if base_var == "roas":
+        # Deterministic contribution / spend: LogNormal only where it is priored
+        if media_name in roas_media:
+            return cfg.roas_priors.to_prior_spec([media_name])
+        return None
+    if base_var == "beta_media" and media_name in roas_media:
+        # Derived from roas_media: deterministic, no analytic prior
+        return None
+    return NotImplemented
+
+
+def _resolve_prior_spec_for_var(
+    mmm, var: str, media_name: str | None
+) -> PriorSpec | None:
+    """Resolve PriorSpec from MMM config for a variable/component.
+
+    Returns ``None`` for deterministic components without an analytic prior
+    (``beta_media`` / ``roas`` of channels without a free coefficient prior).
+    """
     cfg = mmm.config
     base_var = _normalize_var_name(var)  # strip _agrp{i} / _sgrp{i} if present
+
+    roas_spec = _resolve_roas_prior_spec(cfg, base_var, media_name)
+    if roas_spec is not NotImplemented:
+        return roas_spec
 
     direct_map = {
         "beta_media": cfg.beta_priors.media,
@@ -405,6 +447,13 @@ def plot_prior_vs_posterior(  # pylint: disable=too-many-locals, too-many-argume
         x_grid = np.linspace(x_min, x_max, 200)
 
         prior_spec = _resolve_prior_spec_for_var(mmm, var, name)
+        if prior_spec is None:
+            warnings.warn(
+                f"'{var}' is deterministic for '{label_name}': no analytic prior "
+                "PDF is drawn. Plot 'roas_media' to compare with the ROAS prior."
+            )
+            ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15), ncol=1)
+            return
 
         base_var = _normalize_var_name(var)
         name_idx = 0
